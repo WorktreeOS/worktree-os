@@ -222,6 +222,9 @@ svg.lucide { stroke-width: 1.75; flex: none; vertical-align: middle; }
   transition: background .12s, color .12s;
 }
 .nav__links a:hover { background: var(--hover); color: var(--ink); }
+.nav__ext { display: inline-flex; align-items: center; gap: 5px; }
+.nav__ext svg { width: 13px; height: 13px; color: var(--muted); transition: color .12s, transform .12s; }
+.nav__ext:hover svg { color: var(--ink); transform: translate(1px, -1px); }
 .nav__spacer { margin-left: auto; }
 .nav__right { display: flex; align-items: center; gap: 10px; }
 @media (max-width: 860px) { .nav__links { display: none; } }
