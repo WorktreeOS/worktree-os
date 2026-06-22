@@ -1,0 +1,38 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Orientation",
+      "description": "Entry-point skills for agents using the wos CLI and deploy config.",
+      "skills": [
+        "wos-cli",
+        "wos-config"
+      ]
+    },
+    {
+      "title": "Service Operations",
+      "description": "Start, stop, and observe wos-managed services for the current worktree.",
+      "skills": [
+        "wos-service-lifecycle",
+        "wos-service-status"
+      ]
+    },
+    {
+      "title": "Infrastructure",
+      "description": "Operate the local wos daemon, web UI, and Git worktrees.",
+      "skills": [
+        "wos-daemon",
+        "wos-web-ui",
+        "wos-worktree"
+      ]
+    },
+    {
+      "title": "Diagnostics",
+      "description": "Investigate and recover from wos CLI failures.",
+      "skills": [
+        "wos-troubleshooting"
+      ]
+    }
+  ]
+}

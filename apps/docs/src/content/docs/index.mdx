@@ -1,0 +1,68 @@
+---
+title: WorktreeOS
+description: One control plane for every worktree, every project, every agent — a control plane for parallel, agent-driven development. Navigate every worktree, run agents, get notified, review, deploy, and expose your work from one place.
+template: splash
+hero:
+  tagline: One control plane for every worktree, every project, every agent. Navigate, run agents, stay informed, review, deploy, and expose your work from one place.
+  actions:
+    - text: Get Started
+      link: /start/get-started/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/kwolfy/depboy
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+WorktreeOS is a control plane for parallel, agent-driven development across
+worktrees and projects. From one place you navigate every worktree of every
+project, run agent-integrated terminals, stay informed through notifications,
+review and ship your Git changes, deploy via Docker Compose, and expose any
+service through a Cloudflare tunnel. The `wos` CLI and a local daemon power it,
+and a web UI gives every worktree its own detail page for logs, status, and
+controls. Docker deployment is one capability among several — not the whole
+product.
+
+## What WorktreeOS does
+
+<CardGrid>
+  <Card title="See — navigate every worktree" icon="magnifier">
+    Mission Control and the worktree board show every worktree of every project
+    in one place, with live status — so you can find and switch work fast.
+  </Card>
+  <Card title="Work — terminals + agents" icon="laptop">
+    Agent-integrated terminals (Claude Code, Codex, and OpenCode today) run
+    right next to each worktree, so your agents work where the code lives.
+  </Card>
+  <Card title="Know — notifications" icon="comment">
+    Stay informed through Telegram, Web Push, and sound when a worktree, agent,
+    or deployment needs your attention.
+  </Card>
+  <Card title="Ship — Git review + auto commit" icon="approve-check">
+    Review your changes and generate a commit message before you ship, without
+    leaving the worktree's detail page.
+  </Card>
+  <Card title="Run — Docker deployment per worktree" icon="rocket">
+    Deploy the current worktree via generated Docker Compose with stable project
+    names and automatic host-port allocation — or plug into an existing
+    `docker-compose.yaml` in compose mode.
+  </Card>
+  <Card title="Expose — tunnels + HTTPS" icon="puzzle">
+    Expose any service — or the web UI itself — through a Cloudflare tunnel with
+    HTTPS certificates, reachable from anywhere.
+  </Card>
+</CardGrid>
+
+## Find your way around
+
+<CardGrid>
+  <LinkCard title="Get Started" href="/start/get-started/" description="Prerequisites, install, a minimal deploy config, and your first wos up / wos web / wos down." />
+  <LinkCard title="Concepts" href="/concepts/worktrees/" description="Worktrees, and the daemon + web UI." />
+  <LinkCard title="Worktree Runtime" href="/concepts/deployment-lifecycle/" description="Everything deployment: the lifecycle, startup, generated/compose/shell config, services, ports, healthchecks, dependencies, volumes, cache, targets, arguments, the deploy-config reference, and deploy troubleshooting." />
+  <LinkCard title="Guides" href="/guides/web-ui/" description="Task-oriented walkthroughs: the web UI, removing a worktree, native Windows, and WSL access." />
+  <LinkCard title="Reference" href="/reference/cli/" description="CLI commands, storage and sessions, daemon behavior, the release binary, and skills." />
+  <LinkCard title="Troubleshooting" href="/troubleshooting/daemon-errors/" description="Daemon errors and diagnostics. Deployment-specific troubleshooting lives under Worktree Runtime." />
+</CardGrid>

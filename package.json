@@ -1,0 +1,33 @@
+{
+  "name": "worktreeos-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "bin": {
+    "wos": "./apps/cli/index.ts"
+  },
+  "scripts": {
+    "wos": "bun run apps/cli/index.ts",
+    "build:web": "bun run --filter @worktreeos/web build",
+    "docs": "bun run --filter @worktreeos/docs dev",
+    "build:docs": "bun run --filter @worktreeos/docs build",
+    "build:binary": "bun run scripts/build-binary.ts",
+    "dist": "bun run build:web && bun run apps/cli/index.ts restart",
+    "test": "bun run scripts/run-tests.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "bun-plugin-tailwind": "^0.0.15",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "version": "0.0.1"
+}

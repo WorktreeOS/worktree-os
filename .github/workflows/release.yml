@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.suffix }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: bun-darwin-arm64
+            suffix: macos-arm64
+            ext: ""
+          - target: bun-linux-x64
+            suffix: linux-amd64
+            ext: ""
+          - target: bun-windows-x64
+            suffix: windows-amd64
+            ext: ".exe"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Bun cross-compiles every target (incl. the Windows .exe) from Linux.
+      - name: Build binary
+        env:
+          WOS_BINARY_TARGET: ${{ matrix.target }}
+          WOS_BINARY_OUTFILE: dist/wos-${{ github.ref_name }}-${{ matrix.suffix }}${{ matrix.ext }}
+        run: bun run build:binary
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wos-${{ github.ref_name }}-${{ matrix.suffix }}
+          path: dist/wos-${{ github.ref_name }}-${{ matrix.suffix }}${{ matrix.ext }}
+          if-no-files-found: error
+          retention-days: 7
+
+  # NOTE: the Windows-binary smoke gate is temporarily disabled — the
+  # compiled-binary daemon does not become healthy on Windows yet (tracked
+  # separately). Validate the binary on demand via the `Windows Binary Smoke`
+  # workflow (`workflow_dispatch`) before re-adding this as a publish gate.
+  publish:
+    name: Publish Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --generate-notes \
+            dist/*

@@ -1,0 +1,26 @@
+{
+  "name": "@worktreeos/skills",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WorktreeOS AI skills catalog: documentation-only playbooks that teach AI agents how to use wos-cli.",
+  "keywords": [
+    "wos",
+    "ai",
+    "skills",
+    "catalog",
+    "documentation"
+  ],
+  "files": [
+    "README.md",
+    "index.json",
+    "wos-cli",
+    "wos-service-lifecycle",
+    "wos-service-status",
+    "wos-daemon",
+    "wos-web-ui",
+    "wos-worktree",
+    "wos-troubleshooting",
+    "wos-config"
+  ]
+}

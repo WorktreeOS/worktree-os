@@ -1,0 +1,69 @@
+name: Windows Binary Smoke
+
+# Faithfully reproduces the Release smoke — the Windows binary is cross-compiled
+# on Linux (exactly as `release.yml` builds it) and run on a native Windows
+# runner — but WITHOUT cutting a release tag, so the compiled-binary daemon
+# startup can be validated on demand. On failure `windows-smoke.ts` prints
+# `<wos-home>/daemon.log`, surfacing the daemon's actual startup error instead
+# of a bare health-timeout.
+on:
+  workflow_dispatch:
+  push:
+    branches: [windows]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build windows-amd64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Same cross-compile (Linux host, `bun-windows-x64` target) the release
+      # build uses, so this exercises the identical artifact path.
+      - name: Build binary
+        env:
+          WOS_BINARY_TARGET: bun-windows-x64
+          WOS_BINARY_OUTFILE: dist/wos-smoke-windows-amd64.exe
+        run: bun run build:binary
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wos-smoke-windows-amd64
+          path: dist/wos-smoke-windows-amd64.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  smoke:
+    name: Smoke Windows binary
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wos-smoke-windows-amd64
+          path: dist
+
+      - name: Smoke the binary
+        run: bun scripts/windows-smoke.ts dist/wos-smoke-windows-amd64.exe

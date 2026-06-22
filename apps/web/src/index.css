@@ -1,0 +1,948 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* === Typography ===========================================================
+ * Geist Sans + Geist Mono are loaded via <link> in index.html
+ * (Google Fonts) so they don't conflict with tailwind's @import ordering. */
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* === quiet-workspace v3 tokens (light) =================================
+   * Warm ivory shell, pure-white document surface, deep warm charcoal ink.
+   * One amber accent reserved for slash-commands. Diff numbers use --good
+   * (green) and --bad (red) on text only — never on chips. */
+  --shell:        #FBFBFA;
+  --surface:      #FFFFFF;
+  --ink:          #1A1A19;
+  --ink-2:        #3D3D3B;
+
+  --hair:         #ECECEA;
+  --hair-2:       #DFDFDC;
+  --chip-bg:      #F1F1EF;
+  --chip-bg-2:    #E7E7E4;
+  --hover:        #F4F4F2;
+
+  --accent-cmd:   #C84A1B;   /* amber-orange for /command prefix */
+  --accent-cmd-soft: #FBE8DC;
+  --good:         #15803D;   /* +N additions */
+  --bad:          #B91C1C;   /* −M deletions, danger button text, error block */
+  --bad-soft:     #FEF3F0;
+  --bad-border:   #F3CBC5;
+  --warn:         #C2410C;
+  --info:         #1D4ED8;
+  --unread:       #3B82F6;   /* unread session modifier: bold name + trailing dot */
+
+  /* project identity palette (light) — muted, distinct hues used to color the
+   * rail's Sessions-mode project tiles. Deliberately excludes the status
+   * semantics (--good green / --warn amber / --bad red); they read as identity,
+   * not health. Consumed via color-mix by `ProjectTile` (see project-identity.ts). */
+  --p-1: #4F6BED;   /* indigo */
+  --p-2: #2B74C9;   /* blue */
+  --p-3: #1A88B8;   /* cyan-blue */
+  --p-4: #0E9488;   /* teal */
+  --p-5: #7C5CCB;   /* violet */
+  --p-6: #A75BC9;   /* purple */
+  --p-7: #C24FA5;   /* magenta */
+  --p-8: #C2548A;   /* pink */
+
+  /* shadcn-compatible names (mapped to v3) =================================
+   * Existing primitives (Button, Modal, Dialog, …) read these. */
+  --background:        var(--shell);
+  --foreground:        var(--ink);
+  --card:              var(--surface);
+  --card-foreground:   var(--ink);
+  --popover:           var(--surface);
+  --popover-foreground: var(--ink);
+  --primary:           var(--ink);
+  --primary-foreground: var(--surface);
+  --secondary:         var(--hover);
+  --secondary-foreground: var(--ink);
+  --muted:             var(--hover);
+  --muted-foreground:  #8A8A86;
+  --accent:            var(--hover);
+  --accent-foreground: var(--ink);
+  --destructive:       var(--bad);
+  --destructive-foreground: var(--surface);
+  --border:            var(--hair-2);
+  --input:             var(--hair-2);
+  --ring:              var(--ink);
+  --radius:            0.5rem;
+
+  /* sidebar (rail) tokens */
+  --sidebar:                       var(--shell);
+  --sidebar-foreground:            var(--ink-2);
+  --sidebar-primary:               var(--ink);
+  --sidebar-primary-foreground:    var(--surface);
+  --sidebar-accent:                var(--hover);
+  --sidebar-accent-foreground:     var(--ink);
+  --sidebar-border:                var(--hair);
+  --sidebar-ring:                  var(--ink);
+  --sidebar-muted:                 #8A8A86;
+  --sidebar-hover:                 var(--hover);
+  --sidebar-active:                var(--hover);
+
+  /* legacy signal-* aliases — mapped to v3 so old components degrade gently
+   * during the migration. To be removed in tasks group 13 (cleanup). */
+  --signal-active:        var(--ink);
+  --signal-warn:          var(--warn);
+  --signal-error:         var(--bad);
+  --signal-info:          var(--info);
+  --signal-muted:         #A8A8A4;
+  --signal-active-soft:   color-mix(in oklch, var(--ink) 6%, transparent);
+  --signal-warn-soft:     color-mix(in oklch, var(--warn) 12%, transparent);
+  --signal-error-soft:    var(--bad-soft);
+  --signal-info-soft:     color-mix(in oklch, var(--info) 10%, transparent);
+
+  /* grid background removed in v3 — neutralise without breaking any leftover refs */
+  --grid-line: transparent;
+  --grid-dot:  transparent;
+}
+
+.dark {
+  /* === quiet-workspace v3 tokens (dark) ================================== */
+  --shell:        #161614;
+  --surface:      #1C1C1A;
+  --ink:          #ECECE9;
+  --ink-2:        #C8C8C4;
+
+  --hair:         #2A2A28;
+  --hair-2:       #34342F;
+  --chip-bg:      #232322;
+  --chip-bg-2:    #2C2C2A;
+  --hover:        #232322;
+
+  --accent-cmd:   #ED7438;
+  --accent-cmd-soft: #3A2417;
+  --good:         #4ADE80;
+  --bad:          #F87171;
+  --bad-soft:     #2A1614;
+  --bad-border:   #5B2A23;
+  --warn:         #FCD34D;
+  --info:         #93C5FD;
+  --unread:       #60A5FA;
+
+  /* project identity palette (dark) — brighter so the tile reads on the dark
+   * document surface; same hue order as light. */
+  --p-1: #8AA0FF;
+  --p-2: #6FA8E8;
+  --p-3: #4FBEE0;
+  --p-4: #2DD4BF;
+  --p-5: #B49BFF;
+  --p-6: #CB9BEC;
+  --p-7: #E58AD0;
+  --p-8: #F084BB;
+
+  --background:        var(--shell);
+  --foreground:        var(--ink);
+  --card:              var(--surface);
+  --card-foreground:   var(--ink);
+  --popover:           var(--surface);
+  --popover-foreground: var(--ink);
+  --primary:           var(--ink);
+  --primary-foreground: var(--shell);
+  --secondary:         var(--hover);
+  --secondary-foreground: var(--ink);
+  --muted:             var(--hover);
+  --muted-foreground:  #8E8E89;
+  --accent:            var(--hover);
+  --accent-foreground: var(--ink);
+  --destructive:       var(--bad);
+  --destructive-foreground: var(--shell);
+  --border:            var(--hair-2);
+  --input:             var(--hair-2);
+  --ring:              var(--ink);
+
+  --sidebar:                       var(--shell);
+  --sidebar-foreground:            var(--ink-2);
+  --sidebar-primary:               var(--ink);
+  --sidebar-primary-foreground:    var(--shell);
+  --sidebar-accent:                var(--hover);
+  --sidebar-accent-foreground:     var(--ink);
+  --sidebar-border:                var(--hair);
+  --sidebar-ring:                  var(--ink);
+  --sidebar-muted:                 #8E8E89;
+  --sidebar-hover:                 var(--hover);
+  --sidebar-active:                var(--hover);
+
+  --signal-active:        var(--ink);
+  --signal-warn:          var(--warn);
+  --signal-error:         var(--bad);
+  --signal-info:          var(--info);
+  --signal-muted:         #6E6E6A;
+  --signal-active-soft:   color-mix(in oklch, var(--ink) 8%, transparent);
+  --signal-warn-soft:     color-mix(in oklch, var(--warn) 14%, transparent);
+  --signal-error-soft:    var(--bad-soft);
+  --signal-info-soft:     color-mix(in oklch, var(--info) 14%, transparent);
+
+  --grid-line: transparent;
+  --grid-dot:  transparent;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-muted: var(--sidebar-muted);
+
+  --color-signal-active: var(--signal-active);
+  --color-signal-warn: var(--signal-warn);
+  --color-signal-error: var(--signal-error);
+  --color-signal-info: var(--signal-info);
+  --color-signal-muted: var(--signal-muted);
+
+  /* v3-specific tailwind color names */
+  --color-shell: var(--shell);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-hair: var(--hair);
+  --color-hair-2: var(--hair-2);
+  --color-chip-bg: var(--chip-bg);
+  --color-hover: var(--hover);
+  --color-accent-cmd: var(--accent-cmd);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+    Consolas, monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: light dark;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    margin: 0;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  code,
+  kbd,
+  pre,
+  samp,
+  .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--ink) 18%, transparent);
+    color: var(--ink);
+  }
+
+  /* Thin, technical scrollbar. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklch, var(--ink) 14%, transparent);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklch, var(--ink) 24%, transparent);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+
+  :focus-visible {
+    outline: none;
+  }
+}
+
+@layer utilities {
+  /* "Plasma" status dot: a small color-coded disc.
+   * Retained for compatibility with components migrating to v3 primitives. */
+  .status-dot {
+    position: relative;
+    display: inline-block;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 9999px;
+    background: var(--signal-muted);
+  }
+  .status-dot--active {
+    background: var(--signal-active);
+  }
+  .status-dot--running {
+    background: #22C55E;
+  }
+  .status-dot--warn {
+    background: var(--signal-warn);
+  }
+  .status-dot--error {
+    background: var(--signal-error);
+  }
+  .status-dot--info {
+    background: var(--signal-info);
+  }
+  .status-dot--pulse {
+    animation: status-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes status-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.4; }
+  }
+
+  /* Plate — surface for cards / modals. */
+  .plate {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: var(--radius);
+  }
+
+  /* Initial content "reveal" — gentle fade + slide. */
+  @keyframes reveal-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .reveal {
+    animation: reveal-in 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .reveal-delay-1 { animation-delay: 40ms; }
+  .reveal-delay-2 { animation-delay: 100ms; }
+  .reveal-delay-3 { animation-delay: 160ms; }
+  .reveal-delay-4 { animation-delay: 220ms; }
+
+  /* Bottom-sheet slide-up for the mobile navigation surfaces (navigator,
+   * Sessions, More) — a fuller travel than `reveal`, matching
+   * demo/mobile-nav.html `.sheet`. */
+  @keyframes bottom-sheet-in {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  .bottom-sheet-in {
+    animation: bottom-sheet-in 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  /* Honor user motion preference: disable the page-load reveal and the
+   * sheet slide-up under prefers-reduced-motion. */
+  @media (prefers-reduced-motion: reduce) {
+    .reveal,
+    .reveal-delay-1,
+    .reveal-delay-2,
+    .reveal-delay-3,
+    .reveal-delay-4,
+    .bottom-sheet-in {
+      animation: none;
+    }
+  }
+
+  /* Minimal focus ring via outline. */
+  .focus-ring { @apply outline-none; }
+  .focus-ring:focus-visible {
+    outline: 1.5px solid color-mix(in oklch, var(--ink) 50%, transparent);
+    outline-offset: 2px;
+  }
+
+  /* v3 inline-code chip (the canonical primitive lives in InlineCode.tsx,
+   * but the bare utility class is exposed for ad-hoc usage). */
+  .ic, .chip-mono {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    line-height: 1.4;
+    padding: 1px 6px 2px;
+    border-radius: 5px;
+    background: var(--chip-bg);
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .ic--dim {
+    background: transparent;
+    color: var(--ink-2);
+    padding: 0;
+  }
+
+  /* hairline divider helpers */
+  .hr-hair { height: 1px; background: var(--hair); border: 0; margin: 0; }
+  .hr-hair-strong { height: 1px; background: var(--hair-2); border: 0; margin: 0; }
+
+  .sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--sidebar-muted) 35%, transparent) transparent;
+  }
+
+  .sidebar-row {
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+
+  .sidebar-row:hover {
+    background: var(--sidebar-hover);
+  }
+
+  .sidebar-row[data-active="true"] {
+    background: var(--sidebar-active);
+    color: var(--sidebar-accent-foreground);
+    font-weight: 500;
+  }
+
+  @keyframes sidebar-slide-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .sidebar-slide-in {
+    animation: sidebar-slide-in 160ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  @keyframes sidebar-skel {
+    0%, 100% { opacity: 0.45; }
+    50%      { opacity: 0.85; }
+  }
+
+  .sidebar-skel {
+    animation: sidebar-skel 1.2s ease-in-out infinite;
+  }
+
+  /* Project-tile working runner (Sessions mode) — a short bead traces the
+   * rounded-square tile border in the project color, marking the "working"
+   * state on the project tile itself instead of a separate spinner (see
+   * demo/sidebar-stream-v3.html). `pathLength="100"` normalises the perimeter
+   * so the dash maths is resolution-free. The SVG is only mounted while the
+   * session is working, so the animation runs whenever it is present. */
+  .tile-run {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .tile-run rect {
+    fill: none;
+    stroke: var(--pc);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 18 82;
+    stroke-dashoffset: 0;
+    animation: tile-run 1.25s linear infinite;
+  }
+  @keyframes tile-run {
+    to {
+      stroke-dashoffset: -100;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tile-run rect {
+      animation: none;
+    }
+  }
+
+  /* Lucide icon defaults — applied wherever <Icon /> renders without
+   * explicit width/height. Real sizing happens in primitive components. */
+  svg.lucide {
+    stroke-width: 1.75;
+    flex-shrink: 0;
+    display: inline-block;
+    vertical-align: -2px;
+  }
+}
+
+/* === CodeMirror token classes ============================================
+ * `classHighlighter` from @lezer/highlight emits class names of the form
+ * `tok-<tag>`. We only style the most common token categories here so the
+ * Review sidebar gets readable highlighting in both light and dark themes
+ * without pulling in a CodeMirror editor theme. */
+:root {
+  --tok-keyword: oklch(0.45 0.18 285);
+  --tok-string: oklch(0.5 0.14 30);
+  --tok-comment: color-mix(in oklch, var(--ink) 55%, transparent);
+  --tok-number: oklch(0.5 0.16 50);
+  --tok-name: oklch(0.4 0.05 250);
+  --tok-typename: oklch(0.45 0.14 200);
+  --tok-variable: oklch(0.4 0.05 250);
+  --tok-propertyname: oklch(0.45 0.14 220);
+  --tok-function: oklch(0.5 0.15 260);
+  --tok-operator: color-mix(in oklch, var(--ink) 70%, transparent);
+  --tok-punctuation: color-mix(in oklch, var(--ink) 65%, transparent);
+  --tok-bracket: color-mix(in oklch, var(--ink) 70%, transparent);
+  --tok-meta: oklch(0.55 0.1 280);
+  --tok-tag: oklch(0.5 0.18 25);
+  --tok-attribute: oklch(0.5 0.15 60);
+  --tok-bool: oklch(0.5 0.16 50);
+  --tok-null: oklch(0.5 0.16 50);
+  --tok-link: oklch(0.5 0.18 235);
+  --tok-heading: oklch(0.4 0.12 285);
+  --tok-emphasis-style: italic;
+  --tok-strong-weight: 600;
+  --tok-invalid: oklch(0.55 0.22 25);
+}
+
+.dark {
+  --tok-keyword: oklch(0.78 0.16 285);
+  --tok-string: oklch(0.78 0.14 40);
+  --tok-comment: color-mix(in oklch, var(--ink) 50%, transparent);
+  --tok-number: oklch(0.78 0.15 55);
+  --tok-name: oklch(0.9 0.02 250);
+  --tok-typename: oklch(0.78 0.13 200);
+  --tok-variable: oklch(0.9 0.02 250);
+  --tok-propertyname: oklch(0.78 0.13 215);
+  --tok-function: oklch(0.78 0.16 260);
+  --tok-operator: color-mix(in oklch, var(--ink) 75%, transparent);
+  --tok-punctuation: color-mix(in oklch, var(--ink) 65%, transparent);
+  --tok-bracket: color-mix(in oklch, var(--ink) 75%, transparent);
+  --tok-meta: oklch(0.78 0.12 280);
+  --tok-tag: oklch(0.75 0.18 25);
+  --tok-attribute: oklch(0.78 0.14 65);
+  --tok-bool: oklch(0.78 0.15 55);
+  --tok-null: oklch(0.78 0.15 55);
+  --tok-link: oklch(0.78 0.16 230);
+  --tok-heading: oklch(0.78 0.14 285);
+  --tok-invalid: oklch(0.72 0.22 22);
+}
+
+.tok-keyword,
+.tok-modifier,
+.tok-controlKeyword,
+.tok-operatorKeyword,
+.tok-definitionKeyword,
+.tok-moduleKeyword,
+.tok-self,
+.tok-atom { color: var(--tok-keyword); }
+
+.tok-string,
+.tok-string2,
+.tok-character,
+.tok-regexp,
+.tok-escape,
+.tok-special { color: var(--tok-string); }
+
+.tok-comment,
+.tok-lineComment,
+.tok-blockComment,
+.tok-docComment { color: var(--tok-comment); font-style: italic; }
+
+.tok-number,
+.tok-integer,
+.tok-float { color: var(--tok-number); }
+
+.tok-bool { color: var(--tok-bool); }
+.tok-null { color: var(--tok-null); }
+
+.tok-name { color: var(--tok-name); }
+.tok-variableName,
+.tok-variableName2 { color: var(--tok-variable); }
+.tok-propertyName,
+.tok-propertyName2 { color: var(--tok-propertyname); }
+.tok-function,
+.tok-function-variableName,
+.tok-function-definition,
+.tok-function-callExpression { color: var(--tok-function); }
+
+.tok-typeName,
+.tok-className,
+.tok-namespaceName { color: var(--tok-typename); }
+
+.tok-operator,
+.tok-arithmeticOperator,
+.tok-logicOperator,
+.tok-bitwiseOperator,
+.tok-compareOperator,
+.tok-updateOperator,
+.tok-definitionOperator { color: var(--tok-operator); }
+
+.tok-punctuation,
+.tok-separator { color: var(--tok-punctuation); }
+.tok-bracket,
+.tok-paren,
+.tok-brace,
+.tok-squareBracket,
+.tok-angleBracket { color: var(--tok-bracket); }
+
+.tok-meta,
+.tok-processingInstruction,
+.tok-annotation,
+.tok-macroName { color: var(--tok-meta); }
+
+.tok-tagName { color: var(--tok-tag); }
+.tok-attributeName { color: var(--tok-attribute); }
+.tok-attributeValue { color: var(--tok-string); }
+
+.tok-url,
+.tok-link { color: var(--tok-link); text-decoration: underline; }
+
+.tok-heading,
+.tok-heading1,
+.tok-heading2,
+.tok-heading3,
+.tok-heading4 { color: var(--tok-heading); font-weight: var(--tok-strong-weight); }
+
+.tok-emphasis { font-style: var(--tok-emphasis-style); }
+.tok-strong { font-weight: var(--tok-strong-weight); }
+.tok-strikethrough { text-decoration: line-through; }
+
+.tok-invalid { color: var(--tok-invalid); }
+
+/* Review pagination & footer command bar ===================================
+ * Footer-pinned, always reachable. The pager, viewed counter, and shortcut
+ * affordance form a compact "command bar" at the bottom of the Review sidebar.
+ */
+.review-pager__btn {
+  display: inline-grid;
+  place-items: center;
+  height: 1.5rem;
+  min-width: 1.5rem;
+  padding: 0 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--input);
+  background: color-mix(in oklch, var(--background) 40%, transparent);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+
+.review-pager__btn:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: color-mix(in oklch, var(--foreground) 30%, transparent);
+}
+
+.review-pager__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.review-footer {
+  position: relative;
+  border-top: 1px solid var(--border);
+  background: color-mix(in oklch, var(--card) 92%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.review-footer__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.625rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.review-footer__counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--foreground) 6%, transparent);
+  border: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+}
+
+.review-footer__pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.review-footer__range {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.review-footer__page {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  padding: 0 0.375rem;
+  color: var(--foreground);
+}
+
+.review-footer__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.4375rem;
+  border-radius: 0.25rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.review-footer__hint:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.review-footer__hint--on {
+  border-color: color-mix(in oklch, var(--signal-active) 45%, transparent);
+  background: var(--signal-active-soft);
+  color: var(--signal-active);
+}
+
+/* Keyboard-shortcuts overlay anchored above the footer. */
+.review-shortcuts {
+  position: absolute;
+  right: 0.5rem;
+  bottom: calc(100% + 0.375rem);
+  min-width: 13.5rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: color-mix(in oklch, var(--card) 96%, transparent);
+  box-shadow:
+    0 8px 24px -8px color-mix(in oklch, var(--background) 60%, black),
+    0 1px 0 0 color-mix(in oklch, var(--signal-active) 25%, transparent) inset;
+  backdrop-filter: blur(20px);
+  z-index: 5;
+  animation: review-shortcuts-in 180ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes review-shortcuts-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.review-shortcuts__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.375rem;
+}
+
+.review-shortcuts__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review-shortcuts__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.review-shortcuts__keys {
+  display: inline-flex;
+  gap: 0.1875rem;
+}
+
+.review-shortcuts__kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3125rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--input);
+  background: color-mix(in oklch, var(--background) 50%, transparent);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--foreground);
+  box-shadow: 0 1px 0 0 color-mix(in oklch, var(--background) 80%, black);
+}
+
+.review-shortcuts__label {
+  color: var(--muted-foreground);
+  letter-spacing: 0.02em;
+}
+
+/* Active / viewed file states ============================================== */
+.review-file {
+  transition: opacity 200ms ease, background-color 160ms ease;
+}
+
+.review-file--active > .review-file__header {
+  box-shadow:
+    inset 2px 0 0 0 var(--signal-active);
+}
+
+.review-file--viewed {
+  opacity: 0.6;
+}
+
+.review-file--viewed:hover {
+  opacity: 0.95;
+}
+
+.review-file__header {
+  position: sticky;
+}
+
+/* "Copy path" affordance shown only on file header hover. */
+.review-file__copy {
+  display: inline-grid;
+  place-items: center;
+  height: 1.125rem;
+  width: 1.125rem;
+  border-radius: 0.1875rem;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
+}
+
+.review-file__header:hover .review-file__copy,
+.review-file__copy:focus-visible {
+  opacity: 0.85;
+}
+
+.review-file__copy:hover {
+  background: var(--accent);
+  color: var(--foreground);
+  opacity: 1;
+}
+
+.review-file__copy--ok {
+  opacity: 1 !important;
+  color: var(--signal-active);
+}
+
+/* "Viewed" toggle on file headers. */
+.review-file__viewed-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--input);
+  background: color-mix(in oklch, var(--background) 40%, transparent);
+  color: var(--muted-foreground);
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.review-file__viewed-toggle:hover {
+  background: var(--accent);
+  border-color: color-mix(in oklch, var(--foreground) 30%, transparent);
+  color: var(--foreground);
+}
+
+.review-file__viewed-toggle--on {
+  border-color: color-mix(in oklch, var(--signal-active) 50%, transparent);
+  background: var(--signal-active-soft);
+  color: var(--signal-active);
+}
+
+/* Skeleton placeholders ==================================================== */
+.review-skel {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid color-mix(in oklch, var(--foreground) 7%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in oklch, var(--card) 70%, transparent);
+  animation: review-skel-fade 1.4s ease-in-out infinite;
+}
+
+.review-skel__header {
+  height: 0.625rem;
+  width: 40%;
+  border-radius: 0.125rem;
+  background: color-mix(in oklch, var(--foreground) 8%, transparent);
+  margin-bottom: 0.5rem;
+}
+
+.review-skel__line {
+  height: 0.5rem;
+  border-radius: 0.125rem;
+  background: color-mix(in oklch, var(--foreground) 6%, transparent);
+  margin-bottom: 0.375rem;
+}
+
+.review-skel__line--short {
+  width: 70%;
+}
+
+@keyframes review-skel-fade {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 0.95; }
+}
+
+
+
+/* === Seti UI file icons ==================================================
+ * Bundled from microsoft/vscode's theme-seti extension. Used by the worktree
+ * file explorer to render per-extension glyphs. Light/dark tinting comes from
+ * CSS variables set inline by `<SetiFileIcon>` so the theme switch is free.
+ * ==================================================================== */
+@font-face {
+  font-family: "seti";
+  src: url("./assets/seti/seti.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+.seti-icon {
+  font-family: "seti";
+  font-style: normal;
+  font-weight: normal;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--seti-icon-light, currentColor);
+}
+.dark .seti-icon {
+  color: var(--seti-icon-dark, currentColor);
+}
+
+
+/* === xterm.js ===========================================================
+ * Pad the xterm host with a tiny left/top breathing space so prompt glyphs
+ * are not flush to the very edge, while keeping the canvas aligned via
+ * char-cells. The viewport itself stays transparent so the underlying
+ * black surface shows through (avoids a 1px ghost edge against the
+ * panel chrome).
+ * ==================================================================== */
+.xterm {
+  width: 100%;
+  height: 100%;
+  padding: 4px 6px;
+  box-sizing: border-box;
+}
+.xterm .xterm-viewport {
+  background-color: transparent !important;
+}

@@ -1,0 +1,58 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [main, windows]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows unit tests + daemon smoke
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # NOTE: psmux is intentionally NOT installed here. The live tmux-backend
+      # integration tests drive a *persistent* psmux server, which is stateful
+      # and flaky in CI (session-name collisions across runs, probe timeouts).
+      # They gate on `tmux -V` and so skip without psmux; the psmux backend's
+      # deterministic behavior is covered by the binary-resolution, diagnostic,
+      # refresh-conditional, and fake-binary restore unit tests, and the live
+      # path is validated by the manual Windows E2E (tasks.md 9.2).
+
+      # Cross-platform unit tests this change makes Windows-safe: terminal layer
+      # (ConPTY default backend, psmux resolution, Windows process detection),
+      # Docker transports, Windows shell host, and the path/parsing layer.
+      # Run through the repo test runner so each run gets an isolated temp
+      # WOS_HOME (avoids cross-test daemon-metadata pollution).
+      - name: Unit tests
+        run: >
+          bun run scripts/run-tests.ts
+          tests/terminal-layer
+          tests/docker-transport.test.ts
+          tests/docker-log-stream.test.ts
+          tests/docker-snapshot.test.ts
+          tests/docker-service-actions.test.ts
+          tests/shell-windows-host.test.ts
+          tests/shell-runtime.test.ts
+          tests/paths.test.ts
+          tests/config.test.ts
+          tests/generated-compose.test.ts
+
+      # Daemon smoke: start -> daemon.json discovery -> GET /ui/v1/health ->
+      # no-Unix-socket regression guard -> terminal availability -> stop.
+      - name: Daemon smoke
+        run: bun scripts/windows-smoke.ts

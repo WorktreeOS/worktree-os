@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json.schemastore.org/package",
+  "catalog": "wos-ai-skills",
+  "version": "0.0.0",
+  "description": "WorktreeOS AI skills catalog: agent-facing playbooks for operating the wos CLI.",
+  "skills": [
+    {
+      "name": "wos-cli",
+      "description": "General orientation for AI agents using the wos CLI: the first-run setup wizard (wos init) and config gate, command map, global options, and daemon-backed behavior.",
+      "tags": ["cli", "orientation", "entrypoint"],
+      "entry": "wos-cli/SKILL.md"
+    },
+    {
+      "name": "wos-service-lifecycle",
+      "description": "Start and stop wos-managed services: wos up, wos up -d, selective startup, forced refresh, and wos down.",
+      "tags": ["cli", "lifecycle", "up", "down", "compose"],
+      "entry": "wos-service-lifecycle/SKILL.md"
+    },
+    {
+      "name": "wos-service-status",
+      "description": "Inspect worktree deployment state and wait for readiness using wos status and wos wait --timeout.",
+      "tags": ["cli", "status", "readiness", "healthcheck", "wait"],
+      "entry": "wos-service-status/SKILL.md"
+    },
+    {
+      "name": "wos-daemon",
+      "description": "Manage the local wos daemon: start, stop, restart, and foreground diagnostics for the daemon control plane.",
+      "tags": ["cli", "daemon", "operations"],
+      "entry": "wos-daemon/SKILL.md"
+    },
+    {
+      "name": "wos-web-ui",
+      "description": "Open or print the wos web UI URL with wos web and wos web --no-open, including worktree detail URLs.",
+      "tags": ["cli", "web", "ui"],
+      "entry": "wos-web-ui/SKILL.md"
+    },
+    {
+      "name": "wos-worktree",
+      "description": "Use worktree-scoped commands safely, including the global --cwd option and wos worktree remove [--force].",
+      "tags": ["cli", "worktree", "git", "safety"],
+      "entry": "wos-worktree/SKILL.md"
+    },
+    {
+      "name": "wos-troubleshooting",
+      "description": "Diagnose common wos CLI failures in a structured order before retrying or escalating.",
+      "tags": ["cli", "troubleshooting", "diagnostics"],
+      "entry": "wos-troubleshooting/SKILL.md"
+    },
+    {
+      "name": "wos-config",
+      "description": "Understand the deploy-config concepts an agent needs to operate the CLI: modes, services, ports, healthchecks, and clone volumes.",
+      "tags": ["cli", "config", "deploy-config"],
+      "entry": "wos-config/SKILL.md"
+    }
+  ]
+}

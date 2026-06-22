@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#FBFBFA" />
+    <title>WorktreeOS — one control plane for every worktree, every agent</title>
+    <meta
+      name="description"
+      content="WorktreeOS is a local control plane for parallel, agent-driven development. Navigate every worktree of every project, run agent-integrated terminals, ship Git changes, deploy via Docker, and expose services — all from one quiet workspace."
+    />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
+    />
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!-- ====================================================================
+         TOP NAV
+    ===================================================================== -->
+    <header class="nav" id="nav">
+      <div class="wrap nav__inner">
+        <a class="brand" href="#top" aria-label="WorktreeOS home">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <span>WorktreeOS <small>v0.0.1 · local</small></span>
+        </a>
+        <nav class="nav__links" aria-label="Sections">
+          <a href="#demo">Demo</a>
+          <a href="#remote">Remote</a>
+          <a href="#capabilities">Capabilities</a>
+          <a href="#cli">CLI</a>
+          <a href="#platforms">Platforms</a>
+        </nav>
+        <span class="nav__spacer"></span>
+        <div class="nav__right">
+          <button class="icon-btn" id="theme" aria-label="Toggle theme" title="Toggle theme">
+            <i data-lucide="moon"></i>
+          </button>
+          <a class="btn btn--solid btn--sm" href="#install"><i data-lucide="terminal"></i> Get started</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- ==================================================================
+           HERO + LIVE DEMO  (the brief: interactive emulation up top)
+      =================================================================== -->
+      <section class="section hero" id="demo">
+        <div class="wrap">
+          <div class="hero__lede">
+            <span class="kicker">Control plane for parallel work</span>
+            <h1>
+              One window for every worktree,<br />
+              every project, <span class="soft">every agent.</span>
+            </h1>
+            <p class="hero__sub">
+              Your coding agents already run in parallel. WorktreeOS gives that work a single
+              calm home — a live stream of every session, a dossier per worktree, deploys and
+              tunnels one keystroke away. Watch an afternoon of it below.
+            </p>
+            <div class="hero__cta">
+              <a class="btn btn--solid" href="#install"><i data-lucide="download"></i> Install the CLI</a>
+              <a class="btn" href="#capabilities"><i data-lucide="compass"></i> See capabilities</a>
+              <span class="hero__hint">↓ the demo plays itself — scrub the scenes</span>
+            </div>
+          </div>
+
+          <!-- THE LIVING WINDOW ------------------------------------------- -->
+          <div class="demo" aria-label="Interactive WorktreeOS emulation">
+            <div class="demo__frame">
+              <!-- window chrome -->
+              <div class="wc">
+                <span class="wc__lights" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="wc__crumb">
+                  <span id="wc-project">orbit</span><span class="sep">/</span><span class="br" id="wc-branch">refactor-auth</span>
+                  <span class="git" id="wc-git">· 2 uncommitted · de1f0a2 · 4m</span>
+                </span>
+                <nav class="wc__tabs" aria-hidden="true">
+                  <button class="wctab"><i data-lucide="layout-grid"></i> Overview</button>
+                  <button class="wctab"><i data-lucide="box"></i> Runtime</button>
+                  <button class="wctab">Review <span class="add">+27</span> <span class="del">−122</span></button>
+                  <button class="wctab"><i data-lucide="folder"></i> Files</button>
+                  <button class="wctab is-on"><i data-lucide="square-terminal"></i> Terminal <span class="cnt">6</span></button>
+                </nav>
+              </div>
+
+              <!-- two-pane workspace -->
+              <div class="wos">
+                <aside class="rail">
+                  <div class="rail__brand">
+                    <span class="rb-name">WorktreeOS</span>
+                    <span class="rb-tools">
+                      <button class="ibtn" tabindex="-1" aria-hidden="true"><i data-lucide="sun"></i></button>
+                      <button class="ibtn" tabindex="-1" aria-hidden="true"><i data-lucide="panel-left"></i></button>
+                    </span>
+                  </div>
+                  <nav class="rail__nav" aria-hidden="true">
+                    <button class="rnav"><i data-lucide="layout-grid"></i> Home</button>
+                    <button class="rnav"><i data-lucide="settings"></i> Settings</button>
+                  </nav>
+                  <div class="rail__head">
+                    <button class="rail__scope" tabindex="-1" aria-hidden="true">
+                      <span class="si"><i data-lucide="activity"></i></span>
+                      <span class="st"><b>Active now</b><span id="scope-sub"><span class="sdot sdot--wait" style="width:7px;height:7px"></span> 3 live worktrees · 2 projects</span></span>
+                      <span class="sc-caret"><i data-lucide="chevrons-up-down"></i></span>
+                    </button>
+                  </div>
+                  <div class="rail__filter" id="rail-filter"></div>
+                  <div class="rail__body" id="rail-body"></div>
+                  <div class="rail__foot">
+                    <span class="av">R</span>
+                    <span class="who"><b>WorktreeOS</b><span>Local daemon · :4949</span></span>
+                    <span class="tools">
+                      <button class="icon-btn" tabindex="-1" aria-hidden="true" style="width:28px;height:28px;border:0;background:transparent"><i data-lucide="settings"></i></button>
+                    </span>
+                  </div>
+                </aside>
+
+                <section class="surface" id="surface" aria-live="polite"></section>
+              </div>
+
+              <!-- KNOW: notification toast -->
+              <div class="toast" id="toast" role="status">
+                <span class="ic"><i data-lucide="bell"></i></span>
+                <span class="tx">
+                  <b id="toast-title">Needs your approval</b>
+                  <span id="toast-body">orbit / refactor-auth wants to run a command</span>
+                  <span class="src">via Telegram · Web Push · Sound</span>
+                </span>
+              </div>
+            </div>
+
+            <!-- transport controls -->
+            <div class="demo__ctl">
+              <button class="demo__play" id="play" aria-label="Play / pause the demo"><i data-lucide="pause"></i></button>
+              <div class="demo__scenes">
+                <div class="demo__track" id="track" role="tablist" aria-label="Demo scenes"></div>
+                <div class="demo__labels" id="labels"></div>
+              </div>
+              <span class="demo__legend" id="legend">SCENE 1 / 6</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================================
+           THESIS
+      =================================================================== -->
+      <section class="section thesis">
+        <div class="wrap thesis__grid">
+          <div class="reveal-up">
+            <span class="kicker">The shift</span>
+            <h2 style="margin-top:18px">Work went parallel. <em>Most tools never noticed.</em></h2>
+            <p>
+              A dozen agents, half a dozen branches, services booting on borrowed ports — and a
+              terminal multiplexer pretending it's still 2014. WorktreeOS treats the worktree as
+              the unit of work: every session, change, runtime and tunnel for a branch lives on
+              one page, and every page is one keystroke from the next.
+            </p>
+            <p>
+              It runs entirely on your machine. A small <span class="ic">wos</span> CLI and a local
+              daemon do the work; the web UI just makes it legible.
+            </p>
+          </div>
+          <div class="reveal-up thesis__aside" aria-hidden="true">
+            <div class="thesis__stat"><b>1</b><span>window for every project, worktree and agent</span></div>
+            <div class="thesis__stat"><b>3</b><span>agents today — Claude Code, Codex, OpenCode</span></div>
+            <div class="thesis__stat"><b>0</b><span>WSL required — native macOS, Linux &amp; Windows</span></div>
+            <div class="thesis__stat"><b>:4949</b><span>one local daemon, HTTP control plane</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================================
+           REMOTE CONTROL + MOBILE  (a headline advantage)
+      =================================================================== -->
+      <section class="section remote" id="remote">
+        <div class="wrap remote__grid">
+          <div class="remote__copy reveal-up">
+            <span class="kicker">Remote control · mobile</span>
+            <h2>Keep work moving<br />from your phone.</h2>
+            <p>
+              An agent that pauses for a permission shouldn't be blocked on you being at your desk.
+              Publish the web UI through the built-in Cloudflare tunnel and your whole workspace
+              is reachable from any device — read an agent's output, answer a prompt, attach to a
+              session, or kick off <span class="ic">wos up</span>, from the train.
+            </p>
+            <ul class="remote__pts">
+              <li><span class="rp-ic"><i data-lucide="smartphone"></i></span>
+                <span><b>Touch-ready UI.</b> The same interface, responsive down to a phone — not a stripped-down companion app.</span></li>
+              <li><span class="rp-ic"><i data-lucide="globe"></i></span>
+                <span><b>Reach it from anywhere.</b> One tunnel flag publishes the dashboard over HTTPS, gated by a shared secret you control.</span></li>
+              <li><span class="rp-ic"><i data-lucide="bell-ring"></i></span>
+                <span><b>Approve on the go.</b> A notification pings you — open the worktree, read the diff, tap Approve. No laptop required.</span></li>
+            </ul>
+          </div>
+
+          <div class="remote__device reveal-up">
+            <!-- live mobile emulation — the real app, attached to a Claude Code session -->
+            <div class="mphone" aria-hidden="true">
+              <div class="mphone__shell">
+                <span class="mphone__notch"></span>
+                <div class="mphone__screen">
+                  <div class="mph-status">
+                    <span class="t">9:41</span>
+                    <span class="sb"><i data-lucide="signal"></i><i data-lucide="wifi"></i><i data-lucide="battery-full"></i></span>
+                  </div>
+
+                  <!-- worktree / branch scope -->
+                  <div class="mph-scope">
+                    <span class="sc-wt mono">wos-orbit-0794d487</span>
+                    <span class="sc-sl">/</span>
+                    <span class="sc-br"><span class="dot"></span><b>main</b></span>
+                    <i data-lucide="chevrons-up-down"></i>
+                  </div>
+
+                  <!-- attached terminal -->
+                  <div class="mph-term">
+                    <div class="mph-chrome">
+                      <span class="ch-title mono">/openspec-archi…</span>
+                      <span class="ch-path mono">/private/var/www…</span>
+                      <span class="ch-tools">
+                        <i data-lucide="sparkles" class="on"></i>
+                        <i data-lucide="rotate-cw"></i>
+                        <i data-lucide="sliders-horizontal"></i>
+                        <i data-lucide="pencil"></i>
+                        <i data-lucide="x"></i>
+                      </span>
+                    </div>
+                    <pre class="mph-out" id="mphone-out"></pre>
+                    <div class="mph-foot">
+                      <hr class="mph-rule" />
+                      <div class="mph-input"><span class="prompt">❯</span> Commit this<span class="cursor"></span></div>
+                      <hr class="mph-rule" />
+                      <div class="mph-statusln">Op 4.8 <span class="sepc">|</span> orbit <span class="brc">(main)</span> <span class="sepc">|</span> 6M <span class="sepc">|</span> <span class="ctxbar"></span> 61k/1M <span class="sepc">|</span> cach…</div>
+                      <div class="mph-hint">▶▶ bypass permissions on (shift+tab to cycle)</div>
+                    </div>
+                  </div>
+
+                  <!-- touch quick-action dock -->
+                  <div class="mph-touchbar"><span>TOUCH</span><span class="th">Hide</span></div>
+                  <div class="mph-dock">
+                    <div class="dock-head">
+                      <span class="dh-agent"><span class="dot"></span> <b>Claude Code</b> · idle</span>
+                      <span class="dh-seg"><button class="on"><i data-lucide="circle-dot"></i> Actions</button><button><i data-lucide="keyboard"></i> Keys</button></span>
+                    </div>
+                    <div class="dock-acts">
+                      <button class="da da--stop">Stop <kbd>Esc</kbd></button>
+                      <button class="da">/clear</button>
+                      <button class="da">/compact</button>
+                      <button class="da">Plan <kbd>⇧Tab</kbd></button>
+                    </div>
+                  </div>
+
+                  <!-- composer -->
+                  <div class="mph-composer">
+                    <i data-lucide="pencil"></i>
+                    <span class="cmp-ph">Message Claude…</span>
+                    <span class="cmp-send"><i data-lucide="send"></i></span>
+                  </div>
+
+                  <!-- bottom tab bar -->
+                  <nav class="mph-tabs">
+                    <span class="tab"><i data-lucide="home"></i>Overview</span>
+                    <span class="tab"><i data-lucide="boxes"></i>Runtime</span>
+                    <span class="tab tab--fab"><i data-lucide="menu"></i></span>
+                    <span class="tab is-on"><i data-lucide="square-terminal"></i><span class="nd"></span>Sessions</span>
+                    <span class="tab"><i data-lucide="ellipsis"></i>More</span>
+                  </nav>
+                </div>
+              </div>
+            </div>
+            <span class="remote__badge"><i data-lucide="radio"></i> The real UI, live on your phone</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================================
+           CAPABILITIES
+      =================================================================== -->
+      <section class="section" id="capabilities">
+        <div class="wrap">
+          <div class="eyebrow-row reveal-up">
+            <span class="kicker">A day in parallel development</span>
+          </div>
+          <div class="caps__grid reveal-up">
+            <article class="cap">
+              <span class="cap__verb"><span class="ci"><i data-lucide="layout-grid"></i></span>SEE</span>
+              <h3>Mission Control</h3>
+              <p>Navigate every worktree of every project from one stream, grouped by what needs you — not by folder depth.</p>
+              <div class="cap__tags"><span class="t">attention groups</span><span class="t">worktree board</span></div>
+            </article>
+            <article class="cap">
+              <span class="cap__verb"><span class="ci"><i data-lucide="terminal"></i></span>WORK</span>
+              <h3>Agent terminals</h3>
+              <p>Run agent-integrated terminals with live context &amp; token telemetry. Claude Code, Codex and OpenCode today.</p>
+              <div class="cap__tags"><span class="t">claude code</span><span class="t">codex</span><span class="t">opencode</span></div>
+            </article>
+            <article class="cap">
+              <span class="cap__verb"><span class="ci"><i data-lucide="bell"></i></span>KNOW</span>
+              <h3>Notifications</h3>
+              <p>The moment a session needs you — a permission, a finished run — a notification finds you, wherever you are.</p>
+              <div class="cap__tags"><span class="t">telegram</span><span class="t">web push</span><span class="t">sound</span></div>
+            </article>
+            <article class="cap">
+              <span class="cap__verb"><span class="ci"><i data-lucide="git-pull-request"></i></span>SHIP</span>
+              <h3>Git review</h3>
+              <p>Review the diff for a worktree inline, with a per-file change summary and an auto-written commit message.</p>
+              <div class="cap__tags"><span class="t">inline diff</span><span class="t">auto commit msg</span></div>
+            </article>
+            <article class="cap">
+              <span class="cap__verb"><span class="ci"><i data-lucide="container"></i></span>RUN</span>
+              <h3>Docker deploy</h3>
+              <p>Deploy a worktree with <span class="ic">wos up</span>. Compose is generated from <span class="ic">.wos/deploy.yaml</span>; host ports are allocated for you.</p>
+              <div class="cap__tags"><span class="t">compose</span><span class="t">auto ports</span></div>
+            </article>
+            <article class="cap">
+              <span class="cap__verb"><span class="ci"><i data-lucide="globe"></i></span>EXPOSE</span>
+              <h3>Cloudflare tunnels</h3>
+              <p>Expose any service over HTTPS through a Cloudflare tunnel with a managed certificate — no port forwarding.</p>
+              <div class="cap__tags"><span class="t">cloudflare</span><span class="t">https</span></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================================
+           CLI
+      =================================================================== -->
+      <section class="section" id="cli">
+        <div class="wrap cli__grid">
+          <div class="cli reveal-up">
+            <span class="kicker">The wos CLI</span>
+            <h2>Six verbs. One worktree at a time.</h2>
+            <p>
+              The CLI talks to the local daemon over HTTP and prints the worktree's detail-page URL
+              on success — so the terminal and the web UI are always one click apart.
+            </p>
+            <div class="cli__list">
+              <div class="cli__cmd"><code>wos up</code><span>deploy the current worktree, stream every step</span></div>
+              <div class="cli__cmd"><code>wos up -d</code><span>submit the deploy and return the terminal at once</span></div>
+              <div class="cli__cmd"><code>wos status</code><span>service state &amp; published ports for this worktree</span></div>
+              <div class="cli__cmd"><code>wos exec api -- sh</code><span>drop into a running service, like compose exec</span></div>
+              <div class="cli__cmd"><code>wos web</code><span>open the daemon web UI in your browser</span></div>
+              <div class="cli__cmd"><code>wos down</code><span>stop &amp; remove this worktree's containers</span></div>
+            </div>
+          </div>
+          <div class="reveal-up">
+            <div class="console">
+              <div class="console__bar"><i></i><i></i><i></i><b>refactor-auth — zsh</b></div>
+              <pre><span class="p">❯</span> wos up
+<span class="dim">→ prepare · first-run-setup · init-script</span>
+<span class="dim">→ docker compose up</span>
+  <span class="ok">✓</span> web    started   <span class="url">http://localhost:3000</span>
+  <span class="ok">✓</span> api    started   <span class="url">http://localhost:8080</span>
+<span class="dim">→ healthcheck</span>  <span class="ok">healthy</span>
+<span class="ok">✓</span> exposed via Cloudflare
+  <span class="url">https://refactor-auth.trycloudflare.com</span>
+<span class="dim"># open the worktree:</span>
+  <span class="url">http://127.0.0.1:4949/w/orbit/refactor-auth</span>
+<span class="p">❯</span> <span style="opacity:.6">▍</span></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================================
+           PLATFORMS
+      =================================================================== -->
+      <section class="section" id="platforms">
+        <div class="wrap plat__row">
+          <div class="reveal-up">
+            <span class="kicker">Runs natively</span>
+            <p style="margin-top:18px;max-width:240px;color:var(--ink-2);font-size:15px;line-height:1.55">
+              The daemon is an HTTP control plane on every platform. Windows is native — no WSL.
+            </p>
+          </div>
+          <div class="plat__list reveal-up">
+            <div class="plat">
+              <span class="os"><i data-lucide="command"></i> macOS</span>
+              <span class="det">arm64 · PTY terminal · <span class="ic">tmux</span> persistence · Unix-socket Docker</span>
+              <span class="badge"><span class="sdot sdot--run"></span> supported</span>
+            </div>
+            <div class="plat">
+              <span class="os"><i data-lucide="square-terminal"></i> Linux</span>
+              <span class="det">amd64 · PTY terminal · <span class="ic">tmux</span> persistence · Unix-socket Docker</span>
+              <span class="badge"><span class="sdot sdot--run"></span> supported</span>
+            </div>
+            <div class="plat">
+              <span class="os"><i data-lucide="app-window"></i> Windows</span>
+              <span class="det">amd64 · ConPTY · <span class="ic">psmux</span> persistence · Docker Desktop pipe · no WSL</span>
+              <span class="badge"><span class="sdot sdot--run"></span> supported</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================================================================
+           CTA / INSTALL
+      =================================================================== -->
+      <section class="section cta" id="install">
+        <div class="wrap">
+          <span class="kicker reveal-up" style="justify-content:center">Get started</span>
+          <h2 class="reveal-up">Bring your worktrees home.</h2>
+          <p class="reveal-up">Clone, install, and open the web UI. Everything runs on your machine, under your daemon.</p>
+          <div class="install reveal-up">
+            <div class="install__tabs" role="tablist" aria-label="Install target">
+              <button class="install__tab" id="os-unix" role="tab" aria-selected="true">
+                <i data-lucide="apple"></i> macOS / Linux
+              </button>
+              <button class="install__tab" id="os-win" role="tab" aria-selected="false">
+                <i data-lucide="app-window"></i> Windows
+              </button>
+            </div>
+            <div class="install__cmd">
+              <span class="p" id="install-prompt">$</span>
+              <code id="install-code">curl -fsSL https://raw.githubusercontent.com/WorktreeOS/worktree-os/main/install.sh | sh</code>
+              <button class="btn btn--sm cp" id="copy" aria-label="Copy install command"><i data-lucide="copy"></i> Copy</button>
+            </div>
+            <p class="install__note">One line installs the <span class="ic">wos</span> CLI and daemon. Then run <span class="ic">wos web</span> to open the UI.</p>
+          </div>
+          <div class="cta__row reveal-up">
+            <a class="btn btn--solid" href="#demo"><i data-lucide="play"></i> Replay the demo</a>
+            <a class="btn" href="https://docs.worktreeos.dev" target="_blank" rel="noopener"><i data-lucide="book-open"></i> Read the docs</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ====================================================================
+         FOOTER
+    ===================================================================== -->
+    <footer class="foot">
+      <div class="wrap foot__inner">
+        <div>
+          <a class="brand" href="#top" style="margin-bottom:14px">
+            <span class="brand__mark" aria-hidden="true"></span>
+            <span>WorktreeOS</span>
+          </a>
+          <p class="foot__note">
+            One control plane for every worktree, every project, every agent. Local-first, agent-aware,
+            and quiet by default — deployment is one capability among several, not the whole product.
+          </p>
+        </div>
+        <div class="foot__links">
+          <div class="foot__col">
+            <b>Product</b>
+            <a href="#demo">Live demo</a>
+            <a href="#capabilities">Capabilities</a>
+            <a href="#cli">CLI reference</a>
+            <a href="#platforms">Platforms</a>
+          </div>
+          <div class="foot__col">
+            <b>Capabilities</b>
+            <a href="#capabilities">Mission Control</a>
+            <a href="#capabilities">Agent terminals</a>
+            <a href="#capabilities">Docker deploy</a>
+            <a href="#capabilities">Cloudflare tunnels</a>
+          </div>
+          <div class="foot__col">
+            <b>Project</b>
+            <a href="#install">Install</a>
+            <a href="https://github.com/WorktreeOS/worktree-os" target="_blank" rel="noopener">Source</a>
+            <a href="https://docs.worktreeos.dev" target="_blank" rel="noopener">Docs</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <script src="./demo.js"></script>
+    <script src="./main.js"></script>
+  </body>
+</html>

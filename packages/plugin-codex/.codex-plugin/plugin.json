@@ -1,0 +1,8 @@
+{
+  "name": "wos",
+  "description": "WorktreeOS integration for Codex - reports agent activity (working, idle, questions) to the wos daemon",
+  "version": "0.1.0",
+  "author": {
+    "name": "WorktreeOS"
+  }
+}

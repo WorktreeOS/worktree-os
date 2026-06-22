@@ -1,0 +1,11 @@
+{
+  "name": "@worktreeos/site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Static presentation site for WorktreeOS — no framework, no build step.",
+  "scripts": {
+    "dev": "bun run serve.ts",
+    "serve": "bun run serve.ts"
+  }
+}
