@@ -40,6 +40,10 @@
         "sharp": "^0.34.5",
       },
     },
+    "apps/site": {
+      "name": "@worktreeos/site",
+      "version": "0.0.0",
+    },
     "apps/web": {
       "name": "@worktreeos/web",
       "version": "0.0.0",
@@ -97,6 +101,10 @@
     },
     "packages/plugin-claude": {
       "name": "@worktreeos/plugin-claude",
+      "version": "0.0.0",
+    },
+    "packages/plugin-codex": {
+      "name": "@worktreeos/plugin-codex",
       "version": "0.0.0",
     },
     "packages/plugin-opencode": {
@@ -582,9 +590,13 @@
 
     "@worktreeos/plugin-claude": ["@worktreeos/plugin-claude@workspace:packages/plugin-claude"],
 
+    "@worktreeos/plugin-codex": ["@worktreeos/plugin-codex@workspace:packages/plugin-codex"],
+
     "@worktreeos/plugin-opencode": ["@worktreeos/plugin-opencode@workspace:packages/plugin-opencode"],
 
     "@worktreeos/runtime": ["@worktreeos/runtime@workspace:packages/runtime"],
+
+    "@worktreeos/site": ["@worktreeos/site@workspace:apps/site"],
 
     "@worktreeos/skills": ["@worktreeos/skills@workspace:packages/skills"],
 
