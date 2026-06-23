@@ -137,11 +137,13 @@ export function BoardRoute() {
 
   const onOpenCard = useCallback(
     (card: BoardCard) => {
-      // Worktree-centric open: docks the panel beside the board on desktop, or
-      // navigates full-screen on touch (the `from` state powers the back-link).
-      // Always land on the Overview dossier, not the last-used tab (terminal).
+      // Worktree-centric open: the board is the one surface that docks the
+      // panel (desktop), so it opts in via `allowPanel`. On touch it navigates
+      // full-screen instead (the `from` state powers the back-link). Always land
+      // on the Overview dossier, not the last-used tab (terminal).
       openWorktree("worktree", card.worktree.path, {
         tab: "overview",
+        allowPanel: true,
         navigateOptions: { state: { from: "/board" } },
       });
     },

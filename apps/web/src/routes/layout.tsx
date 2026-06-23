@@ -36,7 +36,7 @@ import {
   WorktreePanelProvider,
   useWorktreePanel,
 } from "@/lib/worktree-panel-context";
-import { worktreeRouteUrl } from "@/lib/worktree-open";
+import { isPanelRoute, worktreeRouteUrl } from "@/lib/worktree-open";
 import { Toaster } from "@/components/ui/sonner";
 
 const DESKTOP_MQ = "(min-width: 1024px)";
@@ -180,10 +180,13 @@ function SetupAwareShell() {
     openNavigator,
   };
   const onWorktreeRoute = location.pathname === "/worktree";
-  // Single-instance invariant: the heavy worktree view is mounted by the
-  // full-screen route OR the panel, never both — so suppress the panel while on
-  // `/worktree`. Touch viewports open full-screen instead of docking.
-  const showPanel = isDesktop && panel.path !== null && !onWorktreeRoute;
+  // The docked panel is a board-local affordance: it renders only on a
+  // panel-hosting route (currently just the board), never beside another route.
+  // This also upholds the single-instance invariant — the heavy worktree view is
+  // mounted by the full-screen `/worktree` route OR the panel, never both, since
+  // a panel route is never `/worktree`. Touch viewports open full-screen instead.
+  const showPanel =
+    isDesktop && panel.path !== null && isPanelRoute(location.pathname);
   // Expand promotes the panel's worktree to the full-screen route, then clears
   // the ephemeral selection so the panel does not reappear when navigating back.
   const onExpandPanel = useCallback(() => {

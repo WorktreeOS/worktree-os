@@ -84,6 +84,12 @@ export interface OpenWorktreeOptions {
    * persisted "last tab" (e.g. the board opens worktrees on `overview`).
    */
   tab?: WorktreeTab;
+  /**
+   * Whether this surface permits docking the worktree in the right panel. Only
+   * the board opts in; the sidebar (and after-create) leave this false and
+   * always open the full-screen `/worktree` route.
+   */
+  allowPanel?: boolean;
 }
 
 /**
@@ -91,7 +97,9 @@ export interface OpenWorktreeOptions {
  * the navigation rule (`decideWorktreeOpen`) plus the touch override: on touch
  * (`< lg`) viewports there is no split-pane, so worktree-centric opens go to the
  * full-screen `/worktree` route (the existing mobile worktree chrome) instead of
- * the docked panel.
+ * the docked panel. The docked panel is a board-local affordance — only callers
+ * passing `allowPanel` (the board) can dock; any full-screen open closes a panel
+ * the board left docked, so a sidebar open switches cleanly to full-screen.
  */
 export function useWorktreeOpener(): (
   entry: WorktreeOpenEntry,
@@ -108,6 +116,7 @@ export function useWorktreeOpener(): (
       // Touch: no docked panel — worktree-centric opens render full-screen.
       if (compact && entry !== "terminal") {
         const tab = opts?.tab ?? (entry === "runtime" ? "runtime" : undefined);
+        panel.close();
         navigate(
           worktreeRouteUrl(path, tab ? { panel: tab } : undefined),
           opts?.navigateOptions,
@@ -120,8 +129,13 @@ export function useWorktreeOpener(): (
         pathname: location.pathname,
         terminalSessionId: opts?.terminalSessionId,
         tab: opts?.tab,
+        allowPanel: opts?.allowPanel,
       });
       if (decision.kind === "navigate") {
+        // A full-screen open from a non-panel surface (the sidebar) supersedes
+        // any panel the board docked: close it so this is a clean switch to
+        // full-screen, not a worktree route with a stale dock waiting behind it.
+        panel.close();
         navigate(decision.url, opts?.navigateOptions);
       } else {
         panel.open(path, decision.tab);
