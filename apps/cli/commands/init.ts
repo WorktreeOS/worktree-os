@@ -47,6 +47,7 @@ Options:
   --port <port>            Daemon web UI port (default 4949)
   --backend <default|tmux> Terminal backend to configure
   --install-tmux           Attempt to install tmux/psmux via a host package manager
+  --install-plugins        Install wos agent plugins for detected agents (no prompts)
   --yes                    Non-interactive: apply defaults + flags, no prompts
 `;
 
@@ -305,6 +306,36 @@ async function resolveAgentPlugins(
   );
 }
 
+/**
+ * Non-interactive agent-plugin install (the `--install-plugins` path). For each
+ * detected agent missing its wos plugin, install it without prompting. Codex is
+ * intentionally skipped — parity with the interactive path, which only notifies
+ * for it. Best-effort: one agent's failure must not abort init.
+ */
+async function installAgentPluginsNonInteractive(): Promise<void> {
+  if (Bun.which("claude") && !getAgentPluginStatus("claude").installed) {
+    try {
+      const res = await ensureClaudePluginInstalled();
+      write(
+        res.ok
+          ? "Installed the wos Claude Code plugin.\n"
+          : `Claude plugin install failed: ${res.message}\n`,
+      );
+    } catch (e) {
+      writeErr(`Claude plugin install failed: ${(e as Error).message}\n`);
+    }
+  }
+
+  if (Bun.which("opencode") && !getAgentPluginStatus("opencode").installed) {
+    try {
+      injectOpencodePlugin();
+      write("Installed the wos OpenCode plugin.\n");
+    } catch (e) {
+      writeErr(`OpenCode plugin install failed: ${(e as Error).message}\n`);
+    }
+  }
+}
+
 export async function runInit(argv: string[]): Promise<number> {
   const args = parseInitArgs(argv);
   if ("error" in args) {
@@ -368,6 +399,10 @@ export async function runInit(argv: string[]): Promise<number> {
     return 1;
   }
   write(`Saved configuration to ${globalConfigPath()}\n`);
+
+  if (!interactive && args.installPlugins) {
+    await installAgentPluginsNonInteractive();
+  }
 
   if (interactive) {
     const startNow = await confirmStandalone("Start the wos daemon now?", true);

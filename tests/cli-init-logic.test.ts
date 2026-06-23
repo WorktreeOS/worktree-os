@@ -120,6 +120,7 @@ describe("parseInitArgs", () => {
       "--backend",
       "tmux",
       "--install-tmux",
+      "--install-plugins",
       "--yes",
     ]);
     expect(out).toEqual({
@@ -127,6 +128,7 @@ describe("parseInitArgs", () => {
       port: 8080,
       backend: "tmux",
       installTmux: true,
+      installPlugins: true,
       yes: true,
     });
   });
@@ -138,12 +140,31 @@ describe("parseInitArgs", () => {
       port: 4949,
       backend: "default",
       installTmux: false,
+      installPlugins: false,
       yes: false,
     });
   });
 
   test("defaults flags to false with no args", () => {
-    expect(parseInitArgs([])).toEqual({ installTmux: false, yes: false });
+    expect(parseInitArgs([])).toEqual({
+      installTmux: false,
+      installPlugins: false,
+      yes: false,
+    });
+  });
+
+  test("parses --install-plugins", () => {
+    expect(parseInitArgs(["--install-plugins"])).toEqual({
+      installTmux: false,
+      installPlugins: true,
+      yes: false,
+    });
+  });
+
+  test("rejects a value attached to --install-plugins", () => {
+    expect(parseInitArgs(["--install-plugins=1"])).toEqual({
+      error: "--install-plugins does not take a value",
+    });
   });
 
   test("rejects an invalid port", () => {

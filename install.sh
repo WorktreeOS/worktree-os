@@ -118,14 +118,68 @@ case ":$PATH:" in
 esac
 
 # --- run setup --------------------------------------------------------------
-# Hand off to the wos setup wizard (`wos init`) to finish installation. Call it
-# by full path since $INSTALL_DIR may not be on PATH in this shell yet. Probe
-# whether a controlling terminal can actually be opened (not just stat'd) — if
-# so, re-attach it so the wizard can prompt even under `curl ... | sh`;
-# otherwise run non-interactively (the wizard applies defaults without a TTY).
+# Finish installation by configuring ~/.wos/config.json. Under `curl ... | sh`
+# the binary's stdin is usually not a TTY, so its own wizard would silently
+# apply defaults. Instead we run the survey HERE — reading from /dev/tty, which
+# is reliable — and delegate the answers to a non-interactive `wos init --yes`
+# with flags. This writes the config without starting the daemon. Call the
+# binary by full path since $INSTALL_DIR may not be on PATH in this shell yet.
+
+# ask PROMPT DEFAULT — prompt on /dev/tty, return the answer (default if empty).
+ask() {
+  printf '%s [%s]: ' "$1" "$2" >/dev/tty
+  read -r _ans </dev/tty || _ans=""
+  if [ -z "$_ans" ]; then printf '%s\n' "$2"; else printf '%s\n' "$_ans"; fi
+}
+
+# confirm PROMPT DEFAULT(y/n) — return 0 for yes, 1 for no (default if empty).
+confirm() {
+  if [ "$2" = "y" ]; then _hint="Y/n"; else _hint="y/N"; fi
+  printf '%s (%s) ' "$1" "$_hint" >/dev/tty
+  read -r _ans </dev/tty || _ans=""
+  if [ -z "$_ans" ]; then _ans="$2"; fi
+  case "$_ans" in
+    [Yy] | [Yy][Ee][Ss]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 info "Starting wos setup ('$BIN init')..."
+set -- init --yes
 if { : </dev/tty; } 2>/dev/null; then
-  "$INSTALL_DIR/$BIN" init </dev/tty || warn "setup did not finish; run '$BIN init' to complete it."
+  bind_addr="$(ask 'Daemon bind address' '127.0.0.1')"
+  set -- "$@" --host "$bind_addr"
+
+  web_port="$(ask 'Web UI port' '4949')"
+  set -- "$@" --port "$web_port"
+
+  # Let the binary pick the backend after detect/install; we only opt into the
+  # tmux install when it is missing and the user agrees.
+  if command -v tmux >/dev/null 2>&1; then
+    info "tmux detected — the tmux terminal backend will be used."
+  elif confirm 'Install tmux for stable terminal sessions?' 'y'; then
+    set -- "$@" --install-tmux
+  fi
+
+  if command -v claude >/dev/null 2>&1 || command -v opencode >/dev/null 2>&1; then
+    if confirm 'Install wos agent plugins for detected agents (claude/opencode)?' 'y'; then
+      set -- "$@" --install-plugins
+    fi
+  fi
 else
-  "$INSTALL_DIR/$BIN" init || warn "setup did not finish; run '$BIN init' to complete it."
+  warn "No interactive terminal; applying defaults. Re-run '$BIN init' to customize."
 fi
+
+if ! "$INSTALL_DIR/$BIN" "$@"; then
+  warn "setup did not finish (Docker may be missing); run '$BIN init' to complete it."
+fi
+
+# --- next steps -------------------------------------------------------------
+
+printf '\n'
+info "Setup complete. Next steps:"
+case ":$PATH:" in
+  *":$INSTALL_DIR:"*) : ;;
+  *) printf '    export PATH="%s:$PATH"\n' "$INSTALL_DIR" ;;
+esac
+printf '    %s start\n' "$BIN"
