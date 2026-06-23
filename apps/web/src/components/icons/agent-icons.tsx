@@ -55,6 +55,28 @@ export function CodexIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function PiIcon(props: SVGProps<SVGSVGElement>) {
+  // A stroked π mark (lucide idiom: stroke-width 1.75, round caps/joins). Not a
+  // self-colored brand mark, so it is brand-tinted by the consuming primitive.
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M5 8h14" />
+      <path d="M9 8v9" />
+      <path d="M15 8v7.5a1.5 1.5 0 0 0 2.5 1.1" />
+    </svg>
+  );
+}
+
 export function OpenCodeIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

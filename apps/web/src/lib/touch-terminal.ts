@@ -396,7 +396,7 @@ export function encodeQuickAction(action: TouchQuickAction): string {
 
 /* ---------- Tool-aware touch dock ---------- */
 
-export type TouchTerminalTool = "claude" | "codex" | "opencode" | "shell";
+export type TouchTerminalTool = "claude" | "codex" | "opencode" | "pi" | "shell";
 
 export interface TouchToolAction {
   id: string;
@@ -474,6 +474,23 @@ export const TOUCH_TOOL_PROFILES: Record<TouchTerminalTool, TouchToolProfile> = 
       { id: "compact", label: "/compact", description: "Summarize the session", sequence: enterCommand("/compact"), command: true },
     ],
   },
+  pi: {
+    label: "Pi",
+    placeholder: "Message Pi...",
+    // pi auto-runs its tools, so the dock favors universally-safe keystrokes
+    // over slash commands (kept conservative until pi's command surface is
+    // wired explicitly).
+    primary: [
+      { id: "stop", label: "Stop", hint: "Esc", sequence: "\x1b", danger: true },
+      { id: "interrupt", label: "^C", sequence: "\x03" },
+      { id: "clear", label: "^L", hint: "clear", sequence: "\x0c" },
+      { id: "enter", label: "Enter", sequence: "\r" },
+    ],
+    commands: [
+      { id: "tab", label: "Tab", description: "Autocomplete / cycle", sequence: "\t" },
+      { id: "search", label: "^R", description: "Reverse search history", sequence: "\x12" },
+    ],
+  },
   shell: {
     label: "Shell",
     placeholder: "Run command...",
@@ -494,7 +511,12 @@ export const TOUCH_TOOL_PROFILES: Record<TouchTerminalTool, TouchToolProfile> = 
 };
 
 export function touchTerminalTool(agent?: string): TouchTerminalTool {
-  if (agent === "claude" || agent === "codex" || agent === "opencode") {
+  if (
+    agent === "claude" ||
+    agent === "codex" ||
+    agent === "opencode" ||
+    agent === "pi"
+  ) {
     return agent;
   }
   return "shell";

@@ -114,6 +114,13 @@
         "@worktreeos/core": "workspace:*",
       },
     },
+    "packages/plugin-pi": {
+      "name": "@worktreeos/plugin-pi",
+      "version": "0.0.0",
+      "dependencies": {
+        "@worktreeos/core": "workspace:*",
+      },
+    },
     "packages/runtime": {
       "name": "@worktreeos/runtime",
       "version": "0.0.0",
@@ -593,6 +600,8 @@
     "@worktreeos/plugin-codex": ["@worktreeos/plugin-codex@workspace:packages/plugin-codex"],
 
     "@worktreeos/plugin-opencode": ["@worktreeos/plugin-opencode@workspace:packages/plugin-opencode"],
+
+    "@worktreeos/plugin-pi": ["@worktreeos/plugin-pi@workspace:packages/plugin-pi"],
 
     "@worktreeos/runtime": ["@worktreeos/runtime@workspace:packages/runtime"],
 

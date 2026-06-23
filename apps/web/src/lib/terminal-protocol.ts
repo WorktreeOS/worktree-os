@@ -47,7 +47,7 @@ export interface TerminalControlOwnership {
   changedAt: string;
 }
 
-export type TerminalKnownAgent = "claude" | "opencode" | "codex";
+export type TerminalKnownAgent = "claude" | "opencode" | "codex" | "pi";
 
 export interface TerminalActiveCommand {
   pid: number;

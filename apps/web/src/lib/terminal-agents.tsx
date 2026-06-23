@@ -4,6 +4,7 @@ import {
   ClaudeCodeIcon,
   CodexIcon,
   OpenCodeIcon,
+  PiIcon,
 } from "@/components/icons/agent-icons";
 import type { TerminalKnownAgent } from "@/lib/terminal-protocol";
 import type { TerminalSessionMetadata } from "@/lib/terminal-protocol";
@@ -40,6 +41,11 @@ export const AGENT_PRESENTATION: Record<TerminalKnownAgent, AgentPresentation> =
     label: "OpenCode",
     icon: OpenCodeIcon,
     brand: "#F2B147",
+  },
+  pi: {
+    label: "Pi",
+    icon: PiIcon,
+    brand: "#5B5BD6",
   },
 };
 

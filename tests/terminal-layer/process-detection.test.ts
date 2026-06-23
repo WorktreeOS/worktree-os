@@ -52,6 +52,49 @@ describe("terminal process detection", () => {
   });
 });
 
+describe("pi recognition (narrow matcher, design D7)", () => {
+  test("recognizes an explicit pi invocation by base name and argv", () => {
+    expect(detectKnownAgent({ command: "/usr/local/bin/pi", args: "pi" })).toBe(
+      "pi",
+    );
+    expect(detectKnownAgent({ command: "pi", args: "pi --model gpt-5" })).toBe(
+      "pi",
+    );
+    // A wrapper invoking pi by path is still recognized via argv.
+    expect(
+      detectKnownAgent({ command: "/usr/bin/node", args: "node /usr/local/bin/pi" }),
+    ).toBe("pi");
+  });
+
+  test("selects pi as the foreground agent below the shell", () => {
+    const rows = parseProcessList(
+      [
+        " 100  1 100 101 /bin/zsh /bin/zsh -l",
+        " 101 100 101 101 /usr/local/bin/pi pi",
+      ].join("\n"),
+    );
+    const active = selectActiveCommand(rows, 100);
+    expect(active?.agent).toBe("pi");
+    expect(active?.pid).toBe(101);
+  });
+
+  test("does NOT match unrelated commands/paths that merely contain 'pi'", () => {
+    // base name is not `pi`, and the argv `pi` is never a bounded token here.
+    const adversarial = [
+      { command: "/usr/bin/pip", args: "pip install requests" },
+      { command: "/usr/bin/python3", args: "python3 script.py" },
+      { command: "/usr/sbin/raspi-config", args: "raspi-config" },
+      { command: "/usr/bin/vim", args: "vim src/pipeline.ts" },
+      { command: "/bin/cat", args: "cat /etc/pip.conf" },
+      { command: "/usr/bin/npm", args: "npm run api" },
+      { command: "/usr/bin/mpiexec", args: "mpiexec -n 4 ./solver" },
+    ];
+    for (const row of adversarial) {
+      expect(detectKnownAgent(row)).toBeUndefined();
+    }
+  });
+});
+
 describe("terminal process detection (Windows)", () => {
   test("parses CIM JSON array and a bare single object", () => {
     const arr = parseWindowsProcessList(

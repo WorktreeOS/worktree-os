@@ -17,7 +17,7 @@ import type {
 export type AgentPluginBannerKind = "install" | "update" | "reinstall";
 
 /** Agents that ship a wos plugin. */
-export type AgentPluginBannerAgent = "claude" | "opencode" | "codex";
+export type AgentPluginBannerAgent = "claude" | "opencode" | "codex" | "pi";
 
 export interface AgentPluginBannerOffer {
   agent: AgentPluginBannerAgent;
@@ -36,14 +36,21 @@ export interface AgentPluginBannerOffer {
  * - the flags have not been computed yet (`pluginInstalled` undefined),
  * - an opencode plugin that is installed (and thus current — opencode has no
  *   versioned registry to repair, so there is nothing to reinstall),
- * - or a codex plugin that is installed and current (codex offers no reinstall
- *   affordance; only an install-when-missing / update-when-outdated).
+ * - a codex plugin that is installed and current (codex offers no reinstall
+ *   affordance; only an install-when-missing / update-when-outdated),
+ * - or a pi extension that is installed (pi has no marketplace/version CLI, so
+ *   it offers only install-when-missing and never an update/reinstall variant).
  */
 export function deriveAgentPluginOffer(
   activeCommand: TerminalActiveCommand | undefined,
 ): AgentPluginBannerOffer | null {
   const agent = activeCommand?.agent;
-  if (agent !== "claude" && agent !== "opencode" && agent !== "codex") {
+  if (
+    agent !== "claude" &&
+    agent !== "opencode" &&
+    agent !== "codex" &&
+    agent !== "pi"
+  ) {
     return null;
   }
 
@@ -70,7 +77,8 @@ export function deriveAgentPluginOffer(
     return null;
   }
 
-  // opencode installed & current — nothing to offer.
+  // opencode or pi installed & current — neither has an update/reinstall
+  // affordance, so there is nothing to offer.
   return null;
 }
 

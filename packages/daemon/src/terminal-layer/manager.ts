@@ -160,7 +160,8 @@ export class TerminalSessionManager {
           if (
             command?.agent === "claude" ||
             command?.agent === "opencode" ||
-            command?.agent === "codex"
+            command?.agent === "codex" ||
+            command?.agent === "pi"
           ) {
             const status = getAgentPluginStatus(command.agent);
             command.pluginInstalled = status.installed;

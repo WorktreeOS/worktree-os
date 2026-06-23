@@ -61,6 +61,15 @@ export interface AgentActivityDetail {
   query?: string;
   /** Tool involved in the event (question_asked / permission_request). */
   toolName?: string;
+  /** Session transcript path for telemetry binding (claude / codex / pi). */
+  transcriptPath?: string;
+  /**
+   * Exact context window the agent reports for the active model, in tokens.
+   * Preferred over the static per-model lookup. pi supplies it from
+   * `ctx.model.contextWindow` / `ctx.getContextUsage()` (it is multi-provider,
+   * so the lookup cannot cover every model).
+   */
+  contextWindow?: number;
   /** Additional adapter-specific fields are preserved as-is. */
   [key: string]: unknown;
 }
@@ -356,6 +365,12 @@ const MODEL_CONTEXT_WINDOWS: ReadonlyArray<readonly [RegExp, number]> = [
   [/gpt-5|codex/i, 400_000],
   // GPT-4.1 family — 1,047,576 token context window.
   [/gpt-4\.1/i, 1_047_576],
+  // No speculative non-Anthropic/non-OpenAI guesses here: pi is multi-provider
+  // and reports the *exact* window per model (`ctx.model.contextWindow` /
+  // `ctx.getContextUsage().contextWindow`), threaded onto the binding via
+  // `detail.contextWindow`, which the readers prefer over this lookup. Anything
+  // unmatched falls back to the safe 1M default below — an honest approximation
+  // rather than a wrong specific number (e.g. deepseek-v4-pro is 1M, not 128k).
 ];
 
 /**

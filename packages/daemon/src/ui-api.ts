@@ -42,6 +42,7 @@ import {
   ensureCodexPluginInstalled,
   getAgentPluginStatus,
   injectOpencodePlugin,
+  injectPiExtension,
   reinstallClaudePlugin,
 } from "./agent-plugin-install";
 import { DaemonEventBus } from "./event-bus";
@@ -1127,6 +1128,8 @@ export function createUiApiHandler(
           claude: { installed: claude.installed, outdated: claude.outdated ?? false },
           opencode: { installed: getAgentPluginStatus("opencode").installed },
           codex: { installed: codex.installed, outdated: codex.outdated ?? false },
+          // pi has no version to repair (opencode tier): installed-only, no `outdated`.
+          pi: { installed: getAgentPluginStatus("pi").installed },
         });
       }
       if (sub === "/agent-plugins/install" && req.method === "POST") {
@@ -1141,6 +1144,16 @@ export function createUiApiHandler(
             500,
             "install-failed",
             `failed to install the opencode plugin: ${(e as Error).message}`,
+          );
+        }
+        let piChanged = false;
+        try {
+          piChanged = injectPiExtension();
+        } catch (e) {
+          return errorResponse(
+            500,
+            "install-failed",
+            `failed to install the pi extension: ${(e as Error).message}`,
           );
         }
         // Codex install is best-effort and never fails the whole request: a
@@ -1173,6 +1186,10 @@ export function createUiApiHandler(
             ...(codexResult.ok
               ? {}
               : { error: codexResult.error, message: codexResult.message }),
+          },
+          pi: {
+            installed: getAgentPluginStatus("pi").installed,
+            changed: piChanged,
           },
         });
       }
