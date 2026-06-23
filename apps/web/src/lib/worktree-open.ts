@@ -7,20 +7,35 @@ import type { WorktreeTab } from "@/lib/worktree-tabs";
  *
  * - `terminal` entry points (attach/new terminal) always open the full-screen
  *   `/worktree` route — the terminal needs full width.
- * - `worktree` / `runtime` entry points open the docked panel, *unless* the
- *   active route is already the full-screen `/worktree` route (path is swapped
- *   there) or the `/select` "no worktree selected" placeholder (docking beside an
- *   empty placeholder is meaningless, so the selection takes over the center).
+ * - `worktree` / `runtime` entry points open the full-screen route too, *unless*
+ *   the calling surface opts into docking via `allowPanel` (only the board does)
+ *   — and even then only when the active route is neither the full-screen
+ *   `/worktree` route (path is swapped there) nor the `/select` placeholder
+ *   (docking beside an empty placeholder is meaningless). The panel is therefore
+ *   a board-local affordance: every other surface (the sidebar) opens
+ *   full-screen, which supersedes any panel the board left docked.
  *
- * This keeps at most one worktree detail view mounted: the panel is suppressed
- * by the shell while on `/worktree`, and this helper never asks for a panel from
- * that route.
+ * This keeps at most one worktree detail view mounted: the shell renders the
+ * panel only on a panel-hosting route (`PANEL_ROUTE_PATHS`), and this helper
+ * never asks for a panel from `/worktree` or `/select`.
  */
 
 export const WORKTREE_ROUTE_PATH = "/worktree";
 
 /** The project-scoped "no worktree selected" placeholder route. */
 export const SELECT_ROUTE_PATH = "/select";
+
+/**
+ * Routes that host the right-docked worktree panel. The panel is a board-local
+ * affordance — it docks beside these routes and nowhere else (the shell hides it
+ * on every other route). Add future panel-hosting routes here.
+ */
+export const PANEL_ROUTE_PATHS: readonly string[] = ["/board"];
+
+/** Whether `pathname` is a route that may host the docked worktree panel. */
+export function isPanelRoute(pathname: string): boolean {
+  return PANEL_ROUTE_PATHS.includes(pathname);
+}
 
 export type WorktreeOpenEntry = "worktree" | "runtime" | "terminal";
 
@@ -42,6 +57,14 @@ export interface WorktreeOpenInput {
    * last tab and `runtime` defaults to the Runtime tab.
    */
   tab?: WorktreeTab;
+  /**
+   * Whether the calling surface permits docking the worktree in the right panel
+   * instead of navigating full-screen. Only the board opts in; every other
+   * entry point (the sidebar, after-create) leaves this false and always opens
+   * the full-screen `/worktree` route. Ignored for `terminal` entries (always
+   * full-screen) and when already on `/worktree` or `/select` (always swap).
+   */
+  allowPanel?: boolean;
 }
 
 /** Build a full-screen `/worktree` URL for `path`, optionally selecting a tab. */
@@ -84,6 +107,14 @@ export function decideWorktreeOpen(
     };
   }
 
-  // Worktree / runtime elsewhere: open the docked panel.
-  return { kind: "panel", tab };
+  // Dock the panel only when the calling surface opts in (the board). Every
+  // other surface opens the full-screen route, so the panel stays a board-local
+  // affordance and a sidebar open from the board switches to full-screen.
+  if (input.allowPanel) {
+    return { kind: "panel", tab };
+  }
+  return {
+    kind: "navigate",
+    url: worktreeRouteUrl(path, tab ? { panel: tab } : undefined),
+  };
 }

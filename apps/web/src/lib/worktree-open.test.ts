@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { decideWorktreeOpen, worktreeRouteUrl } from "./worktree-open";
+import { decideWorktreeOpen, isPanelRoute, worktreeRouteUrl } from "./worktree-open";
 
 const PATH = "/repo/feature-x";
 const ENC = encodeURIComponent(PATH);
@@ -35,16 +35,27 @@ describe("decideWorktreeOpen — terminal entry", () => {
 });
 
 describe("decideWorktreeOpen — worktree entry", () => {
-  test("opens the panel when off the worktree route", () => {
+  test("navigates full-screen when off the worktree route without allowPanel", () => {
     expect(
       decideWorktreeOpen({ entry: "worktree", path: PATH, pathname: "/board" }),
+    ).toEqual({ kind: "navigate", url: `/worktree?path=${ENC}` });
+  });
+
+  test("docks the panel when the surface opts in via allowPanel", () => {
+    expect(
+      decideWorktreeOpen({
+        entry: "worktree",
+        path: PATH,
+        pathname: "/board",
+        allowPanel: true,
+      }),
     ).toEqual({ kind: "panel", tab: undefined });
   });
 
-  test("opens the panel from the home route", () => {
+  test("navigates full-screen from the home route without allowPanel", () => {
     expect(
       decideWorktreeOpen({ entry: "worktree", path: PATH, pathname: "/" }),
-    ).toEqual({ kind: "panel", tab: undefined });
+    ).toEqual({ kind: "navigate", url: `/worktree?path=${ENC}` });
   });
 
   test("swaps the path when already on the worktree route", () => {
@@ -64,8 +75,20 @@ describe("decideWorktreeOpen — worktree entry", () => {
         path: PATH,
         pathname: "/board",
         tab: "overview",
+        allowPanel: true,
       }),
     ).toEqual({ kind: "panel", tab: "overview" });
+  });
+
+  test("an explicit tab rides the full-screen open when not docking", () => {
+    expect(
+      decideWorktreeOpen({
+        entry: "worktree",
+        path: PATH,
+        pathname: "/board",
+        tab: "overview",
+      }),
+    ).toEqual({ kind: "navigate", url: `/worktree?path=${ENC}&panel=overview` });
   });
 
   test("an explicit tab rides the swap when already on the worktree route", () => {
@@ -87,10 +110,21 @@ describe("decideWorktreeOpen — worktree entry", () => {
 });
 
 describe("decideWorktreeOpen — runtime entry", () => {
-  test("opens the panel on the runtime tab when off the worktree route", () => {
+  test("docks the panel on the runtime tab with allowPanel off the worktree route", () => {
+    expect(
+      decideWorktreeOpen({
+        entry: "runtime",
+        path: PATH,
+        pathname: "/board",
+        allowPanel: true,
+      }),
+    ).toEqual({ kind: "panel", tab: "runtime" });
+  });
+
+  test("navigates full-screen with the runtime handoff without allowPanel", () => {
     expect(
       decideWorktreeOpen({ entry: "runtime", path: PATH, pathname: "/board" }),
-    ).toEqual({ kind: "panel", tab: "runtime" });
+    ).toEqual({ kind: "navigate", url: `/worktree?path=${ENC}&panel=runtime` });
   });
 
   test("swaps the path with the runtime handoff when on the worktree route", () => {
@@ -131,5 +165,17 @@ describe("worktreeRouteUrl — expand target", () => {
       pathname: "/worktree",
     });
     expect(swap).toEqual({ kind: "navigate", url: worktreeRouteUrl(PATH) });
+  });
+});
+
+describe("isPanelRoute — where the docked panel may render", () => {
+  test("the board hosts the panel", () => {
+    expect(isPanelRoute("/board")).toBe(true);
+  });
+
+  test("the worktree, select, and home routes do not", () => {
+    expect(isPanelRoute("/worktree")).toBe(false);
+    expect(isPanelRoute("/select")).toBe(false);
+    expect(isPanelRoute("/")).toBe(false);
   });
 });
