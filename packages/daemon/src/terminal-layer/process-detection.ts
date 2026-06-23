@@ -51,6 +51,17 @@ const KNOWN_AGENT_MATCHERS: Array<{
     names: new Set(["codex"]),
     args: /(^|\s|[\\/])(codex|@openai\/codex)(\s|$)/i,
   },
+  // `pi` is a 2-character generic token (design D7): recognize it by the base
+  // command name and a tightly scoped args regex matching only an explicit `pi`
+  // invocation (a `pi` token bounded by start/whitespace/path-separator on the
+  // left and whitespace/end on the right). This never matches an unrelated
+  // command or path that merely contains the substring "pi" (e.g. `pip`,
+  // `python`, `raspi-config`, `src/pipeline.ts`).
+  {
+    agent: "pi",
+    names: new Set(["pi"]),
+    args: /(^|\s|[\\/])pi(\s|$)/i,
+  },
 ];
 
 let cachedRows: { at: number; rows: ProcessRow[] } | null = null;

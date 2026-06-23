@@ -161,7 +161,7 @@ export interface TerminalTranscriptBinding {
    * Originating agent, selecting the transcript parser on restart-rebind.
    * Absent on records written before codex support — treated as `claude`.
    */
-  agent?: "claude" | "codex";
+  agent?: "claude" | "codex" | "pi";
 }
 
 export interface TerminalBackendRestoreResult {

@@ -34,6 +34,8 @@
       "@worktreeos/plugin-claude/*": ["packages/plugin-claude/*.ts"],
       "@worktreeos/plugin-opencode": ["packages/plugin-opencode/src/index.ts"],
       "@worktreeos/plugin-opencode/*": ["packages/plugin-opencode/src/*.ts"],
+      "@worktreeos/plugin-pi": ["packages/plugin-pi/src/index.ts"],
+      "@worktreeos/plugin-pi/*": ["packages/plugin-pi/src/*.ts"],
       "@worktreeos/runtime": ["packages/runtime/src/index.ts"],
       "@worktreeos/runtime/*": ["packages/runtime/src/*.ts"],
       "@worktreeos/ui": ["packages/ui/src/index.ts"],

@@ -208,6 +208,11 @@ function AgentPluginsBanner({
         } else {
           setFailureMessage(GENERIC_PLUGIN_FAILURE);
         }
+      } else if (nudge.agent === "pi") {
+        // pi is a drop-file extension write — success is simply that the shim
+        // now resolves to the bundled source.
+        if (res.pi.installed) setDone(nudge.kind);
+        else setFailureMessage(GENERIC_PLUGIN_FAILURE);
       } else if (
         res.claude.installed &&
         !res.claude.outdated &&

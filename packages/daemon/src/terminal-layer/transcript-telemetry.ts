@@ -36,13 +36,18 @@ const DEFAULT_POLL_INTERVAL_MS = 2_000;
 const DEFAULT_DEBOUNCE_MS = 1_000;
 
 /** Agent family of a bound transcript, selecting its parser. */
-export type TranscriptAgent = "claude" | "codex";
+export type TranscriptAgent = "claude" | "codex" | "pi";
 
 /** Per-binding agent + fallback model carried from the `session_start` event. */
 export interface BindOptions {
   agent?: TranscriptAgent;
   /** Codex fallback model (from `detail.model`) until `session_meta` is read. */
   model?: string;
+  /**
+   * Exact context window the agent reports for the active model (pi supplies it
+   * via `detail.contextWindow`). Preferred over the static per-model lookup.
+   */
+  contextWindow?: number;
 }
 
 /** Cumulative usage tally for one transcript file. */
@@ -136,6 +141,16 @@ export class TranscriptTelemetryReader {
   ): void {
     const previous = this.bindings.get(terminalSessionId);
     if (previous && previous.main.path === transcriptPath) {
+      // Same file: a later event may carry the model's window now that it was
+      // absent at the first bind (pi's `ctx.model` is unset until the model is
+      // selected). Refresh it so the meter stops showing the lookup default.
+      if (
+        options?.contextWindow &&
+        options.contextWindow !== previous.contextWindow
+      ) {
+        previous.contextWindow = options.contextWindow;
+        this.schedulePublish(previous);
+      }
       void this.read(previous);
       return;
     }
@@ -161,6 +176,8 @@ export class TranscriptTelemetryReader {
       // Codex reports the model from session_meta; until then fall back to the
       // model carried on the session_start event.
       ...(options?.model ? { model: options.model } : {}),
+      // pi reports the exact window per model; preferred over the lookup.
+      ...(options?.contextWindow ? { contextWindow: options.contextWindow } : {}),
       contextUsed: 0,
       watcher: null,
       lastPublishedAt: 0,
@@ -295,9 +312,9 @@ export class TranscriptTelemetryReader {
 
   /** One read pass, dispatched to the agent's parser. */
   private async readOnce(binding: TranscriptBinding): Promise<boolean> {
-    return binding.agent === "codex"
-      ? this.readCodexOnce(binding)
-      : this.readClaudeOnce(binding);
+    if (binding.agent === "codex") return this.readCodexOnce(binding);
+    if (binding.agent === "pi") return this.readPiOnce(binding);
+    return this.readClaudeOnce(binding);
   }
 
   /**
@@ -390,6 +407,39 @@ export class TranscriptTelemetryReader {
     // back to `working` — the signal that un-sticks a session falsely demoted
     // while the main agent waited on a subagent. A hard hook-`stop` idle and an
     // `awaiting-input` block are left untouched by `refreshAgentActivity`.
+    if (appended) {
+      this.opts.terminalLayer.refreshAgentActivity(
+        binding.terminalSessionId,
+        new Date((this.opts.now ?? Date.now)()).toISOString(),
+      );
+    }
+    return changed;
+  }
+
+  /**
+   * One read pass over a pi JSONL session file. pi records per-assistant-message
+   * usage (like Claude, unlike Codex's cumulative "latest wins"), so `spent`
+   * (`output + cacheWrite`) is **summed** into `main.spentTokens`, while
+   * `contextUsed` (`input + cacheRead + cacheWrite`) is taken from the **latest**
+   * assistant record. pi branches within a single file (no separate subagent
+   * transcripts), so `subagentTokens` stays 0. Tolerant: unknown records/shapes
+   * are ignored.
+   */
+  private async readPiOnce(binding: TranscriptBinding): Promise<boolean> {
+    let changed = false;
+    let appended = false;
+    if (!binding.watcher) binding.watcher = this.tryWatch(binding);
+
+    for (const line of await readAppendedLines(binding.main)) {
+      appended = true;
+      const record = parsePiAssistantRecord(line);
+      if (!record) continue;
+      binding.main.spentTokens += record.spent;
+      if (record.model) binding.model = record.model;
+      // Context tracks the latest assistant record (not a sum across records).
+      binding.contextUsed = record.contextUsed;
+      changed = true;
+    }
     if (appended) {
       this.opts.terminalLayer.refreshAgentActivity(
         binding.terminalSessionId,
@@ -603,6 +653,53 @@ function parseAssistantRecord(line: string): AssistantUsageRecord | null {
       num(usage.input_tokens) +
       num(usage.cache_read_input_tokens) +
       num(usage.cache_creation_input_tokens),
+  };
+}
+
+/** Usage derived from one pi assistant record. */
+export interface PiAssistantUsage {
+  model?: string;
+  /** output + cacheWrite tokens of this record. */
+  spent: number;
+  /** input + cacheRead + cacheWrite tokens of this record. */
+  contextUsed: number;
+}
+
+/**
+ * Parse one pi JSONL line into an assistant usage record, or null for any other
+ * record type / shape. pi writes one record per entry as
+ * `{ type: "message", message: { role, model, usage: { input, output, cacheRead,
+ * cacheWrite } } }`; only `role: "assistant"` records carry usage. Any missing
+ * usage sub-field counts as 0; malformed JSON, non-message records, user
+ * messages, and unknown shapes degrade to null — never an error.
+ */
+export function parsePiAssistantRecord(line: string): PiAssistantUsage | null {
+  if (!line.includes('"assistant"')) return null;
+  let record: unknown;
+  try {
+    record = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (typeof record !== "object" || record === null) return null;
+  const r = record as Record<string, unknown>;
+  if (r.type !== "message") return null;
+  const message =
+    typeof r.message === "object" && r.message !== null
+      ? (r.message as Record<string, unknown>)
+      : undefined;
+  if (!message || message.role !== "assistant") return null;
+  const usageRaw = message.usage as Record<string, unknown> | undefined;
+  if (typeof usageRaw !== "object" || usageRaw === null) return null;
+  const n = (value: unknown): number =>
+    typeof value === "number" && Number.isFinite(value) ? value : 0;
+  const rawModel = message.model;
+  const model =
+    typeof rawModel === "string" && rawModel !== "" ? rawModel : undefined;
+  return {
+    ...(model ? { model } : {}),
+    spent: n(usageRaw.output) + n(usageRaw.cacheWrite),
+    contextUsed: n(usageRaw.input) + n(usageRaw.cacheRead) + n(usageRaw.cacheWrite),
   };
 }
 

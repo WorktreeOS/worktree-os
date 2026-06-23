@@ -16,7 +16,9 @@
 
 import { randomBytes } from "node:crypto";
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readdir } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, join, resolve } from "node:path";
 import {
   AGENT_ACTIVITY_PROTOCOL_VERSION,
   type AgentActivityEvent,
@@ -31,10 +33,65 @@ import { wosHome } from "@worktreeos/core/paths";
 import type { DaemonEventBus } from "./event-bus";
 import type { DaemonLogger, ModuleLogger } from "./logger";
 import type { TerminalSessionManager } from "./terminal-layer/manager";
-import type { TranscriptTelemetryReader } from "./terminal-layer/transcript-telemetry";
+import type {
+  TranscriptAgent,
+  TranscriptTelemetryReader,
+} from "./terminal-layer/transcript-telemetry";
 import { normalizeTerminalTitle } from "./terminal-layer/title";
 
 export const AGENT_TOKEN_FILENAME = "agent-token";
+
+/**
+ * pi config directory for binding-path derivation. Defaults to `~/.pi`; honors
+ * `PI_CONFIG_DIR` (parallel to the install-path resolution in
+ * `agent-plugin-install.ts`) so tests and custom installs can redirect it.
+ */
+function piConfigDir(env: NodeJS.ProcessEnv = process.env): string {
+  return env.PI_CONFIG_DIR
+    ? resolve(env.PI_CONFIG_DIR)
+    : resolve(homedir(), ".pi");
+}
+
+/**
+ * Deterministic pi sessions directory for a cwd. pi encodes the project path by
+ * joining its non-empty path segments with `-` and wrapping the result in
+ * `--…--` under `<pi-config>/agent/sessions/` — e.g.
+ * `/Users/x/.wos/proj` → `--Users-x-.wos-proj--` (note: the leading separator
+ * is dropped, so it is a segment join, not a literal `/`→`-` replace).
+ */
+export function piSessionsDirForCwd(
+  cwd: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const encoded = `--${cwd.split(/[\\/]/).filter(Boolean).join("-")}--`;
+  return resolve(piConfigDir(env), "agent", "sessions", encoded);
+}
+
+/**
+ * Resolve a pi session's JSONL by its session id. pi names session files
+ * `<timestamp>_<sessionId>.jsonl`, so the id maps to exactly one file. Returns
+ * undefined when the directory is missing/unreadable or no file matches (e.g.
+ * pi has not written its lazily-created file yet). The D3 fallback used when a
+ * pi `session_start` event carries no `transcriptPath`; keyed by id rather than
+ * "newest file" so it can never latch onto an unrelated session.
+ */
+export async function findPiSessionFileById(
+  cwd: string,
+  sessionId: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string | undefined> {
+  if (!sessionId) return undefined;
+  const dir = piSessionsDirForCwd(cwd, env);
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return undefined;
+  }
+  const suffix = `_${sessionId}.jsonl`;
+  const match = names.find((name) => name.endsWith(suffix));
+  return match ? join(dir, match) : undefined;
+}
 
 /** Path of the persisted agent token inside the wos home directory. */
 export function agentTokenPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -259,7 +316,7 @@ export class AgentActivityIngest {
 
     // Primary binding: terminal session id injected at PTY spawn.
     if (event.terminalSessionId && this.opts.terminalLayer) {
-      this.bindTranscript(event);
+      await this.bindTranscript(event);
       await this.applyTitle(event);
       const applied = this.opts.terminalLayer.applyAgentActivity(
         event.terminalSessionId,
@@ -308,27 +365,80 @@ export class AgentActivityIngest {
   }
 
   /**
-   * Bind the session's transcript for telemetry when a `session_start`
-   * event carries a `transcriptPath` detail. Latest bind wins, so `/clear`,
-   * `/resume`, and `/compact` rebind automatically.
+   * Bind (or rebind) the session's transcript for telemetry. The reader's
+   * `bind()` is idempotent for the same path and rebinds on a different one, so
+   * latest-path wins and `/clear`, `/resume`, `/compact` rebind automatically.
+   *
+   * claude/codex carry the transcript path on their `session_start` hook, so
+   * they bind only there. pi creates its session file lazily (after the first
+   * assistant reply), so the path is absent at `session_start`; the pi extension
+   * therefore reports `getSessionFile()` on every event, and pi (re)binds
+   * whenever an event carries a `transcriptPath` — correcting a startup bind
+   * that fell back to the cwd directory scan (design D3) onto a stale file.
    */
-  private bindTranscript(event: AgentActivityEvent): void {
+  private async bindTranscript(event: AgentActivityEvent): Promise<void> {
     const reader = this.opts.transcriptTelemetry;
-    if (!reader || event.event !== "session_start" || !event.terminalSessionId) {
+    if (!reader || !event.terminalSessionId) return;
+    // Tag the binding with the originating agent so the reader selects the
+    // right parser (codex rollout / pi JSONL / claude transcript).
+    const agent: TranscriptAgent =
+      event.agent === "codex"
+        ? "codex"
+        : event.agent === "pi"
+          ? "pi"
+          : "claude";
+    const detail = event.detail as Record<string, unknown> | undefined;
+    const source = typeof detail?.source === "string" ? detail.source : undefined;
+    const detailPath =
+      typeof detail?.transcriptPath === "string" && detail.transcriptPath !== ""
+        ? detail.transcriptPath
+        : undefined;
+    // Exact context window the agent reports for the model (pi), preferred over
+    // the static per-model lookup.
+    const contextWindow =
+      typeof detail?.contextWindow === "number" && detail.contextWindow > 0
+        ? detail.contextWindow
+        : undefined;
+
+    if (agent === "pi") {
+      // The pi extension reports `getSessionFile()` on every event, so bind on
+      // ANY pi event that carries a path (not just session_start) — pi rebinds
+      // on `/new`, `/fork`, `/resume` mid-run, and latest-path wins.
+      let transcriptPath = detailPath;
+      // Last resort (no path on the event): resolve the session's own file by
+      // its id (`<ts>_<sessionId>.jsonl`). Only attempted at session_start — a
+      // heartbeat with no path must not scan every few seconds. Keyed by id, so
+      // it binds the right file or nothing, never an unrelated session.
+      if (!transcriptPath && event.event === "session_start") {
+        transcriptPath = await findPiSessionFileById(
+          event.cwd,
+          event.agentSessionId,
+        );
+      }
+      if (!transcriptPath) return;
+      reader.bind(
+        event.terminalSessionId,
+        transcriptPath,
+        event.agentSessionId,
+        source,
+        undefined,
+        { agent, ...(contextWindow ? { contextWindow } : {}) },
+      );
+      this.log?.debug("transcript.bind", {
+        sid: event.terminalSessionId,
+        source: source ?? event.event,
+        agent,
+        path: basename(transcriptPath),
+      });
       return;
     }
-    const detail = event.detail as Record<string, unknown> | undefined;
-    const transcriptPath = detail?.transcriptPath;
-    if (typeof transcriptPath !== "string" || transcriptPath === "") return;
-    const source = typeof detail?.source === "string" ? detail.source : undefined;
-    // Tag the binding with the originating agent so the reader selects the
-    // Codex rollout parser vs the Claude transcript parser, and seed the codex
-    // fallback model from `detail.model` until `session_meta` is read.
-    const agent = event.agent === "codex" ? "codex" : "claude";
+
+    // claude / codex: bind only on session_start carrying a path.
+    if (event.event !== "session_start" || !detailPath) return;
     const model = typeof detail?.model === "string" ? detail.model : undefined;
     reader.bind(
       event.terminalSessionId,
-      transcriptPath,
+      detailPath,
       event.agentSessionId,
       source,
       undefined,
@@ -338,6 +448,7 @@ export class AgentActivityIngest {
       sid: event.terminalSessionId,
       source: source ?? "session_start",
       agent,
+      path: basename(detailPath),
     });
   }
 

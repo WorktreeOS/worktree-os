@@ -125,6 +125,39 @@ describe("deriveAgentPluginOffer", () => {
     ).toEqual({ agent: "codex", kind: "update", stateKey: "codex:outdated" });
   });
 
+  test("pi missing offers Install", () => {
+    expect(
+      deriveAgentPluginOffer(
+        activeCommand({
+          agent: "pi" as TerminalKnownAgent,
+          pluginInstalled: false,
+        }),
+      ),
+    ).toEqual({ agent: "pi", kind: "install", stateKey: "pi:missing" });
+  });
+
+  test("pi installed offers nothing and never an update variant", () => {
+    // pi has no marketplace/version CLI: installed → no update / reinstall, and
+    // an `pluginOutdated` flag (which pi never sets) must not change that.
+    expect(
+      deriveAgentPluginOffer(
+        activeCommand({
+          agent: "pi" as TerminalKnownAgent,
+          pluginInstalled: true,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      deriveAgentPluginOffer(
+        activeCommand({
+          agent: "pi" as TerminalKnownAgent,
+          pluginInstalled: true,
+          pluginOutdated: true,
+        }),
+      ),
+    ).toBeNull();
+  });
+
   test("no detected agent — no offer", () => {
     expect(deriveAgentPluginOffer(activeCommand())).toBeNull();
     expect(deriveAgentPluginOffer(undefined)).toBeNull();

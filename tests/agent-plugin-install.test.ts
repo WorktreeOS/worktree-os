@@ -12,12 +12,15 @@ import {
   ensureClaudePluginInstalled,
   getAgentPluginStatus,
   injectOpencodePlugin,
+  injectPiExtension,
   isAgentPluginInstalled,
   opencodeConfigPath,
   opencodePluginEntry,
+  piPluginEntry,
   reinstallClaudePlugin,
   removeLegacyClaudeHooks,
   resetAgentPluginInstallCache,
+  wosPiExtensionPath,
 } from "@worktreeos/daemon/agent-plugin-install";
 import type { ClaudeCliRunner } from "@worktreeos/daemon/claude-plugin-cli";
 import {
@@ -36,6 +39,7 @@ beforeEach(() => {
   env = {
     CLAUDE_CONFIG_DIR: resolve(home, ".claude"),
     XDG_CONFIG_HOME: resolve(home, ".config"),
+    PI_CONFIG_DIR: resolve(home, ".pi"),
   };
   resetAgentPluginInstallCache();
 });
@@ -393,5 +397,42 @@ describe("opencode auto-inject", () => {
     expect(injectOpencodePlugin(env)).toBe(true);
     const config = JSON.parse(readFileSync(path, "utf8"));
     expect(config.plugin).toEqual(["other", opencodePluginEntry()]);
+  });
+});
+
+describe("pi extension install/detection", () => {
+  test("a missing extension reads as not installed", () => {
+    expect(getAgentPluginStatus("pi", env).installed).toBe(false);
+    expect(isAgentPluginInstalled("pi", env)).toBe(false);
+  });
+
+  test("inject writes a shim resolving to the bundled source", () => {
+    expect(injectPiExtension(env)).toBe(true);
+    const shim = readFileSync(wosPiExtensionPath(env), "utf8");
+    expect(shim).toContain(piPluginEntry());
+    const status = getAgentPluginStatus("pi", env);
+    expect(status.installed).toBe(true);
+    // pi never reports an outdated indicator (opencode tier — no version).
+    expect(status.outdated).toBeUndefined();
+  });
+
+  test("inject is idempotent on an already-current shim", () => {
+    expect(injectPiExtension(env)).toBe(true);
+    expect(injectPiExtension(env)).toBe(false);
+    expect(isAgentPluginInstalled("pi", env)).toBe(true);
+  });
+
+  test("inject rewrites a stale shim path and re-marks installed", () => {
+    const path = wosPiExtensionPath(env);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(
+      path,
+      `export { default } from "/old/stale/plugin-pi/src/index.ts";\n`,
+    );
+    // A shim pointing at a stale path does not count as installed.
+    expect(isAgentPluginInstalled("pi", env)).toBe(false);
+    expect(injectPiExtension(env)).toBe(true);
+    expect(readFileSync(path, "utf8")).toContain(piPluginEntry());
+    expect(isAgentPluginInstalled("pi", env)).toBe(true);
   });
 });

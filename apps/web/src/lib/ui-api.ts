@@ -808,6 +808,8 @@ export interface AgentPluginsResponse {
   claude: { installed: boolean; outdated: boolean };
   opencode: { installed: boolean };
   codex: { installed: boolean; outdated: boolean };
+  /** pi has no version to repair: installed-only, never `outdated`. */
+  pi: { installed: boolean };
 }
 
 export interface AgentPluginsInstallResponse {
@@ -823,6 +825,8 @@ export interface AgentPluginsInstallResponse {
     error?: string;
     message?: string;
   };
+  /** pi extension drop-file install (installed-only, like opencode). */
+  pi: { installed: boolean; changed: boolean };
 }
 
 /** Result of a claude-only plugin reinstall (uninstall → update → install). */

@@ -93,7 +93,7 @@ export interface TerminalControlOwnership {
 export type TerminalTitleSource = "user" | "agent";
 
 /** Known agent command families recognized inside terminal sessions. */
-export type TerminalKnownAgent = "claude" | "opencode" | "codex";
+export type TerminalKnownAgent = "claude" | "opencode" | "codex" | "pi";
 
 /** Best-effort snapshot of the current foreground command in the PTY. */
 export interface TerminalActiveCommand {

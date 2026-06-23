@@ -1,10 +1,17 @@
 import { describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type { AgentActivityBlock } from "@worktreeos/core/agent-activity";
 import { reduceAgentActivity } from "@worktreeos/core/agent-activity";
 import type { UnifiedEventEnvelope } from "@worktreeos/core/unified-events";
 
-import { AgentActivityIngest } from "@worktreeos/daemon/agent-activity-ingest";
+import {
+  AgentActivityIngest,
+  findPiSessionFileById,
+  piSessionsDirForCwd,
+} from "@worktreeos/daemon/agent-activity-ingest";
 import { DaemonEventBus } from "@worktreeos/daemon/event-bus";
 import { TerminalSessionManager } from "@worktreeos/daemon/terminal-layer/manager";
 import { createFakeTerminalRuntime } from "@worktreeos/daemon/terminal-layer/testing";
@@ -560,6 +567,243 @@ describe("transcript binding from session_start", () => {
       ),
     );
     expect(binds).toEqual([]);
+  });
+});
+
+describe("pi transcript binding from session_start", () => {
+  /** Spy that also captures the `agent` selected on the binding options. */
+  function makePiReaderSpy() {
+    const binds: Array<{
+      id: string;
+      path: string;
+      agentSessionId: string;
+      source?: string;
+      agent?: string;
+      contextWindow?: number;
+    }> = [];
+    const reader = {
+      bind(
+        id: string,
+        path: string,
+        agentSessionId: string,
+        source?: string,
+        _seed?: unknown,
+        options?: { agent?: string; contextWindow?: number },
+      ) {
+        binds.push({
+          id,
+          path,
+          agentSessionId,
+          source,
+          agent: options?.agent,
+          ...(options?.contextWindow
+            ? { contextWindow: options.contextWindow }
+            : {}),
+        });
+      },
+    };
+    return { binds, reader };
+  }
+
+  test("a pi session_start with a transcriptPath binds that file with the pi parser", async () => {
+    const { manager } = fakeTerminalLayer(["term-1"]);
+    const { binds, reader } = makePiReaderSpy();
+    const ingest = new AgentActivityIngest({
+      token: TOKEN,
+      terminalLayer: manager,
+      transcriptTelemetry: reader as never,
+    });
+    const res = await ingest.handle(
+      makeRequest(
+        sampleEvent({
+          agent: "pi",
+          event: "session_start",
+          terminalSessionId: "term-1",
+          agentSessionId: "pi-sess",
+          detail: { transcriptPath: "/p/pi.jsonl", source: "startup" },
+        }),
+      ),
+    );
+    expect(res.status).toBe(200);
+    expect(binds).toEqual([
+      {
+        id: "term-1",
+        path: "/p/pi.jsonl",
+        agentSessionId: "pi-sess",
+        source: "startup",
+        agent: "pi",
+      },
+    ]);
+  });
+
+  test("a pi event threads detail.contextWindow into the bind options", async () => {
+    const { manager } = fakeTerminalLayer(["term-1"]);
+    const { binds, reader } = makePiReaderSpy();
+    const ingest = new AgentActivityIngest({
+      token: TOKEN,
+      terminalLayer: manager,
+      transcriptTelemetry: reader as never,
+    });
+    await ingest.handle(
+      makeRequest(
+        sampleEvent({
+          agent: "pi",
+          event: "session_start",
+          terminalSessionId: "term-1",
+          agentSessionId: "pi-sess",
+          // pi reports the exact window per model; deepseek-v4-pro is 1M.
+          detail: { transcriptPath: "/p/pi.jsonl", contextWindow: 1_048_576 },
+        }),
+      ),
+    );
+    expect(binds).toEqual([
+      {
+        id: "term-1",
+        path: "/p/pi.jsonl",
+        agentSessionId: "pi-sess",
+        source: undefined,
+        agent: "pi",
+        contextWindow: 1_048_576,
+      },
+    ]);
+  });
+
+  test("a pi prompt_submit carrying a transcriptPath rebinds (not only session_start)", async () => {
+    // pi's session file is created lazily, so the path is absent at
+    // session_start and arrives on a later event — the daemon must rebind then.
+    const { manager } = fakeTerminalLayer(["term-1"]);
+    const { binds, reader } = makePiReaderSpy();
+    const ingest = new AgentActivityIngest({
+      token: TOKEN,
+      terminalLayer: manager,
+      transcriptTelemetry: reader as never,
+    });
+    await ingest.handle(
+      makeRequest(
+        sampleEvent({
+          agent: "pi",
+          event: "prompt_submit",
+          terminalSessionId: "term-1",
+          agentSessionId: "pi-sess",
+          detail: { query: "go", transcriptPath: "/p/now.jsonl" },
+        }),
+      ),
+    );
+    expect(binds).toEqual([
+      {
+        id: "term-1",
+        path: "/p/now.jsonl",
+        agentSessionId: "pi-sess",
+        source: undefined,
+        agent: "pi",
+      },
+    ]);
+  });
+
+  test("a pi heartbeat with no path does not trigger a directory scan", async () => {
+    // A path-less heartbeat must not dir-scan (which would fire every few
+    // seconds); only session_start falls back to the scan.
+    const { manager } = fakeTerminalLayer(["term-1"]);
+    const { binds, reader } = makePiReaderSpy();
+    const ingest = new AgentActivityIngest({
+      token: TOKEN,
+      terminalLayer: manager,
+      transcriptTelemetry: reader as never,
+    });
+    await ingest.handle(
+      makeRequest(
+        sampleEvent({
+          agent: "pi",
+          event: "heartbeat",
+          terminalSessionId: "term-1",
+          agentSessionId: "pi-sess",
+        }),
+      ),
+    );
+    expect(binds).toEqual([]);
+  });
+
+  test("piSessionsDirForCwd matches pi's real segment-join encoding", () => {
+    // pi joins non-empty path segments with `-` and wraps in `--…--` — the
+    // leading separator is dropped (NOT a literal `/`→`-` replace, which would
+    // add an extra leading dash). Verified against a real ~/.pi/agent/sessions.
+    const dir = piSessionsDirForCwd("/Users/x/.wos/worktrees/wos-d38/pi-dev", {
+      PI_CONFIG_DIR: "/home/.pi",
+    });
+    expect(dir.endsWith("/--Users-x-.wos-worktrees-wos-d38-pi-dev--")).toBe(true);
+  });
+
+  test("findPiSessionFileById resolves the session file by its id suffix", async () => {
+    const home = mkdtempSync(join(tmpdir(), "wos-pi-home-"));
+    try {
+      const cwd = "/work/proj";
+      const dir = piSessionsDirForCwd(cwd, { PI_CONFIG_DIR: join(home, ".pi") });
+      mkdirSync(dir, { recursive: true });
+      // pi names session files `<timestamp>_<sessionId>.jsonl`.
+      const want = join(dir, "2026-06-23T09-52-11-047Z_pi-sess-123.jsonl");
+      writeFileSync(want, "{}\n");
+      writeFileSync(join(dir, "2026-06-23T09-13-50-548Z_other-sess.jsonl"), "{}\n");
+
+      const env = { PI_CONFIG_DIR: join(home, ".pi") };
+      expect(await findPiSessionFileById(cwd, "pi-sess-123", env)).toBe(want);
+      // An unknown id resolves nothing rather than an unrelated newest file.
+      expect(await findPiSessionFileById(cwd, "missing", env)).toBeUndefined();
+      // An empty id never scans.
+      expect(await findPiSessionFileById(cwd, "", env)).toBeUndefined();
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a pi session_start with no transcriptPath binds its own file resolved by id", async () => {
+    const home = mkdtempSync(join(tmpdir(), "wos-pi-home-"));
+    const prev = process.env.PI_CONFIG_DIR;
+    try {
+      process.env.PI_CONFIG_DIR = join(home, ".pi");
+      const cwd = "/work/scan";
+      const dir = piSessionsDirForCwd(cwd);
+      mkdirSync(dir, { recursive: true });
+      // The session's own file, plus an unrelated NEWER one that must be ignored
+      // (a "newest file" scan would have bound it — the id keys to the right one).
+      const own = join(dir, "2026-06-23T09-00-00-000Z_pi-sess.jsonl");
+      const unrelated = join(dir, "2026-06-23T10-00-00-000Z_other.jsonl");
+      writeFileSync(own, "{}\n");
+      writeFileSync(unrelated, "{}\n");
+      utimesSync(own, new Date(1_000_000), new Date(1_000_000));
+      utimesSync(unrelated, new Date(2_000_000), new Date(2_000_000));
+
+      const { manager } = fakeTerminalLayer(["term-1"]);
+      const { binds, reader } = makePiReaderSpy();
+      const ingest = new AgentActivityIngest({
+        token: TOKEN,
+        terminalLayer: manager,
+        transcriptTelemetry: reader as never,
+      });
+      await ingest.handle(
+        makeRequest(
+          sampleEvent({
+            agent: "pi",
+            event: "session_start",
+            terminalSessionId: "term-1",
+            agentSessionId: "pi-sess",
+            cwd,
+          }),
+        ),
+      );
+      expect(binds).toEqual([
+        {
+          id: "term-1",
+          path: own,
+          agentSessionId: "pi-sess",
+          source: undefined,
+          agent: "pi",
+        },
+      ]);
+    } finally {
+      if (prev === undefined) delete process.env.PI_CONFIG_DIR;
+      else process.env.PI_CONFIG_DIR = prev;
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 });
 
