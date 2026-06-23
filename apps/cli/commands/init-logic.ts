@@ -113,6 +113,7 @@ export interface ParsedInitArgs {
   port?: number;
   backend?: TerminalBackendId;
   installTmux: boolean;
+  installPlugins: boolean;
   yes: boolean;
 }
 
@@ -122,14 +123,14 @@ export interface InitArgsError {
 
 /**
  * Parse the `wos init` flags: `--host`, `--port`, `--backend <default|tmux>`,
- * `--install-tmux`, `--yes`. Both `--flag value` and `--flag=value` forms are
- * accepted for valued flags. Unknown arguments and invalid `--port` /
- * `--backend` values produce a usage error.
+ * `--install-tmux`, `--install-plugins`, `--yes`. Both `--flag value` and
+ * `--flag=value` forms are accepted for valued flags. Unknown arguments and
+ * invalid `--port` / `--backend` values produce a usage error.
  */
 export function parseInitArgs(
   argv: string[],
 ): ParsedInitArgs | InitArgsError {
-  const out: ParsedInitArgs = { installTmux: false, yes: false };
+  const out: ParsedInitArgs = { installTmux: false, installPlugins: false, yes: false };
   let i = 0;
   while (i < argv.length) {
     const arg = argv[i]!;
@@ -181,6 +182,12 @@ export function parseInitArgs(
           return { error: "--install-tmux does not take a value" };
         }
         out.installTmux = true;
+        break;
+      case "--install-plugins":
+        if (inlineValue !== undefined) {
+          return { error: "--install-plugins does not take a value" };
+        }
+        out.installPlugins = true;
         break;
       case "--yes":
         if (inlineValue !== undefined) {

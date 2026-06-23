@@ -102,11 +102,66 @@ if (-not $onPath) {
 }
 
 # --- run setup --------------------------------------------------------------
-# Hand off to the wos setup wizard (`wos init`) to finish installation. Call it
-# by full path since $InstallDir may not be active in this shell yet. A non-zero
-# exit (e.g. Docker missing) only warns — the binary is already installed.
-Write-Step "Starting wos setup ('wos init')..."
-& $dest init
-if ($LASTEXITCODE -ne 0) {
-    Write-Warn "setup did not finish (exit $LASTEXITCODE); run 'wos init' to complete it."
+# Finish installation by configuring %USERPROFILE%\.wos\config.json. Under
+# `irm ... | iex` the binary's own wizard may not get an interactive stdin and
+# would silently apply defaults. Instead we run the survey HERE via Read-Host
+# and delegate the answers to a non-interactive `wos init --yes` with flags,
+# which writes the config without starting the daemon. Call the binary by full
+# path since $InstallDir may not be active in this shell yet.
+
+# Prompt for a value, returning $default when the answer is blank.
+function Read-WithDefault($prompt, $default) {
+    $answer = Read-Host "$prompt [$default]"
+    if ([string]::IsNullOrWhiteSpace($answer)) { return $default }
+    return $answer
 }
+
+# Yes/no prompt; returns the bool, defaulting to $defaultYes on a blank answer.
+function Confirm-Yn($prompt, $defaultYes) {
+    $hint = if ($defaultYes) { 'Y/n' } else { 'y/N' }
+    $answer = (Read-Host "$prompt ($hint)").Trim().ToLower()
+    if ([string]::IsNullOrWhiteSpace($answer)) { return $defaultYes }
+    return ($answer -eq 'y' -or $answer -eq 'yes')
+}
+
+Write-Step "Starting wos setup ('wos init')..."
+$initArgs = @('init', '--yes')
+# $host is an automatic PowerShell variable — use $bindHost for the bind address.
+$interactive = [Environment]::UserInteractive -and -not [Console]::IsInputRedirected
+if ($interactive) {
+    $bindHost = Read-WithDefault 'Daemon bind address' '127.0.0.1'
+    $initArgs += @('--host', $bindHost)
+
+    $webPort = Read-WithDefault 'Web UI port' '4949'
+    $initArgs += @('--port', $webPort)
+
+    # Let the binary pick the backend after detect/install; only opt into the
+    # psmux install when it is missing and the user agrees.
+    if (Get-Command psmux -ErrorAction SilentlyContinue) {
+        Write-Step 'psmux detected - the tmux terminal backend will be used.'
+    } elseif (Confirm-Yn 'Install psmux for stable terminal sessions?' $true) {
+        $initArgs += '--install-tmux'
+    }
+
+    $hasClaude = [bool](Get-Command claude -ErrorAction SilentlyContinue)
+    $hasOpencode = [bool](Get-Command opencode -ErrorAction SilentlyContinue)
+    if ($hasClaude -or $hasOpencode) {
+        if (Confirm-Yn 'Install wos agent plugins for detected agents (claude/opencode)?' $true) {
+            $initArgs += '--install-plugins'
+        }
+    }
+} else {
+    Write-Warn "No interactive terminal; applying defaults. Re-run 'wos init' to customize."
+}
+
+& $dest @initArgs
+if ($LASTEXITCODE -ne 0) {
+    Write-Warn "setup did not finish (Docker may be missing); run 'wos init' to complete it."
+}
+
+# --- next steps -------------------------------------------------------------
+# $InstallDir was already added to the user PATH above, so just point at start.
+
+Write-Host ''
+Write-Step 'Setup complete. Next steps:'
+Write-Host '    Start the daemon:  wos start'
