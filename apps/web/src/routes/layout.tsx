@@ -258,11 +258,15 @@ function SetupAwareShell() {
     setNavigatorOpen(false);
   }, [location.pathname, location.search]);
 
-  // The `/select` placeholder means "no worktree is open" — a docked panel left
-  // over from a previous selection (e.g. after a project switch) would contradict
-  // that and strand the user beside an empty center, so clear it on arrival.
+  // The mission-control wall (`/`) and the `/select` placeholder both mean "no
+  // worktree is open". A docked panel left over from the board survives in-app
+  // route changes, so without this it would resurface as the right panel the
+  // moment the user returns to the board — opening mission control should close
+  // the current worktree. Clear the ephemeral selection on arrival at either.
   useEffect(() => {
-    if (location.pathname === "/select") panel.close();
+    if (location.pathname === "/" || location.pathname === "/select") {
+      panel.close();
+    }
   }, [location.pathname, panel.close]);
 
   const inDocs = location.pathname.startsWith("/docs/");
