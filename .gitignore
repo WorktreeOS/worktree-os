@@ -44,7 +44,10 @@ apps/web/types/
 
 .skills-lock.json
 .claude
-.agents
+.agents/*
+!.agents/plugins
+.agents/plugins/*
+!.agents/plugins/marketplace.json
 .codex
 .opencode
 
