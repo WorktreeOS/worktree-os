@@ -249,6 +249,17 @@ export function publishProjectUpdated(
   );
 }
 
+export function publishProjectRemoved(
+  events: DaemonEventBus | undefined,
+  projectId: string,
+): void {
+  if (!events) return;
+  events.publish(
+    { type: "project.removed", projectId },
+    { projectId },
+  );
+}
+
 /**
  * Wrap a base `DeploymentObserver` so that every emitted event is also
  * mirrored as one or more unified events on the bus. The returned observer

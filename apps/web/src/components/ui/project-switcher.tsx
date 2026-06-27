@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import {
   Activity,
   Check,
   ChevronsUpDown,
   FolderGit2,
   FolderPlus,
+  Settings2,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -62,6 +64,7 @@ export function ProjectSwitcher({
 }: ProjectSwitcherProps) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const activeNow = scope === "active-now";
   const orderedProjects = applyProjectOrder(projects, projectOrder);
 
@@ -308,6 +311,32 @@ export function ProjectSwitcher({
             </span>
             <span className={cn(touch ? "text-[15px]" : "text-[13px]")}>
               Add project…
+            </span>
+          </button>
+          <button
+            type="button"
+            role="option"
+            data-testid="sidebar-project-settings"
+            onClick={() => {
+              navigate("/settings/projects");
+              setOpen(false);
+            }}
+            className={cn(
+              "flex w-full items-center gap-2.5 rounded-lg text-left text-[color:var(--ink-2)] transition-colors hover:bg-[color:var(--hover)]",
+              touch ? "px-2.5 py-2.5" : "px-2.5 py-2",
+            )}
+          >
+            <span
+              aria-hidden
+              className={cn(
+                "grid shrink-0 place-items-center rounded-md text-[color:var(--muted-foreground)]",
+                touch ? "size-8" : "size-[26px]",
+              )}
+            >
+              <Settings2 className={touch ? "size-4" : "size-3.5"} strokeWidth={1.75} />
+            </span>
+            <span className={cn(touch ? "text-[15px]" : "text-[13px]")}>
+              Project settings…
             </span>
           </button>
         </div>

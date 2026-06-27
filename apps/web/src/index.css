@@ -33,18 +33,52 @@
   --info:         #1D4ED8;
   --unread:       #3B82F6;   /* unread session modifier: bold name + trailing dot */
 
-  /* project identity palette (light) — muted, distinct hues used to color the
-   * rail's Sessions-mode project tiles. Deliberately excludes the status
-   * semantics (--good green / --warn amber / --bad red); they read as identity,
-   * not health. Consumed via color-mix by `ProjectTile` (see project-identity.ts). */
-  --p-1: #4F6BED;   /* indigo */
-  --p-2: #2B74C9;   /* blue */
-  --p-3: #1A88B8;   /* cyan-blue */
-  --p-4: #0E9488;   /* teal */
-  --p-5: #7C5CCB;   /* violet */
-  --p-6: #A75BC9;   /* purple */
-  --p-7: #C24FA5;   /* magenta */
-  --p-8: #C2548A;   /* pink */
+  /* project identity palette (light) — 36 curated, maximally-distinct hues used
+   * to color the rail's session-stream project tiles. Spans the full hue wheel
+   * (status semantics are no longer hue-excluded: a project tile is a large
+   * rounded-square monogram, a different visual class from the 7px status dot,
+   * so a red/green tile does not read as health). Authored in OKLCH with
+   * golden-angle hue stepping and gamut-mapped to sRGB, ordered so any prefix is
+   * maximally dispersed — assigned round-robin by least-used slot, so the first
+   * projects get the most distinct colors. Consumed via color-mix by
+   * `ProjectTile`; the slot count must equal PROJECT_PALETTE_SIZE in
+   * project-registry.ts. */
+  --p-1: #CB5B50;
+  --p-2: #03A579;
+  --p-3: #9C68D9;
+  --p-4: #C87C04;
+  --p-5: #089AB7;
+  --p-6: #C65A88;
+  --p-7: #65A12C;
+  --p-8: #627DEF;
+  --p-9: #DB6F2F;
+  --p-10: #09A195;
+  --p-11: #B063B9;
+  --p-12: #A29008;
+  --p-13: #0093D3;
+  --p-14: #D05564;
+  --p-15: #01A85A;
+  --p-16: #8874DB;
+  --p-17: #C87D08;
+  --p-18: #039DAA;
+  --p-19: #C3589E;
+  --p-20: #829B07;
+  --p-21: #4987E4;
+  --p-22: #E46544;
+  --p-23: #02A485;
+  --p-24: #A566CD;
+  --p-25: #A78F05;
+  --p-26: #0698C1;
+  --p-27: #D24F7A;
+  --p-28: #54A346;
+  --p-29: #7379E7;
+  --p-30: #D37626;
+  --p-31: #099F9D;
+  --p-32: #BD59B4;
+  --p-33: #979407;
+  --p-34: #008FE3;
+  --p-35: #CD5958;
+  --p-36: #08A66F;
 
   /* shadcn-compatible names (mapped to v3) =================================
    * Existing primitives (Button, Modal, Dialog, …) read these. */
@@ -122,16 +156,44 @@
   --info:         #93C5FD;
   --unread:       #60A5FA;
 
-  /* project identity palette (dark) — brighter so the tile reads on the dark
-   * document surface; same hue order as light. */
-  --p-1: #8AA0FF;
-  --p-2: #6FA8E8;
-  --p-3: #4FBEE0;
-  --p-4: #2DD4BF;
-  --p-5: #B49BFF;
-  --p-6: #CB9BEC;
-  --p-7: #E58AD0;
-  --p-8: #F084BB;
+  /* project identity palette (dark) — brighter/lighter so the tile reads on the
+   * dark document surface; same hue order and slot count as light. */
+  --p-1: #EB8C80;
+  --p-2: #53CC9F;
+  --p-3: #BF97F5;
+  --p-4: #EAA659;
+  --p-5: #14C4E9;
+  --p-6: #E68AAE;
+  --p-7: #93C66D;
+  --p-8: #90AAFF;
+  --p-9: #F89E6E;
+  --p-10: #04CDBE;
+  --p-11: #D192D9;
+  --p-12: #C8B748;
+  --p-13: #45BBFF;
+  --p-14: #EF8790;
+  --p-15: #65CC89;
+  --p-16: #AEA0F6;
+  --p-17: #EEA54F;
+  --p-18: #35C6D6;
+  --p-19: #E48AC1;
+  --p-20: #A8C254;
+  --p-21: #7DB0FD;
+  --p-22: #FF997E;
+  --p-23: #4ECBAB;
+  --p-24: #C794EA;
+  --p-25: #CFB539;
+  --p-26: #3FC0ED;
+  --p-27: #F184A2;
+  --p-28: #88C77C;
+  --p-29: #9CA5FF;
+  --p-30: #F1A36A;
+  --p-31: #14CBC8;
+  --p-32: #DE8AD5;
+  --p-33: #BCBB56;
+  --p-34: #61B7FE;
+  --p-35: #EC8B86;
+  --p-36: #5BCC97;
 
   --background:        var(--shell);
   --foreground:        var(--ink);

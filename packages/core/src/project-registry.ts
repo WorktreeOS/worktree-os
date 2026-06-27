@@ -18,6 +18,18 @@ export interface ProjectRecord {
   /** Optional last validation error (e.g. path missing, not a worktree). */
   lastError?: string;
   /**
+   * Palette slot index in [0, PROJECT_PALETTE_SIZE) selecting the project's
+   * identity color. Assigned round-robin by least-used slot on registration,
+   * user-overridable, and stable thereafter. Backfilled deterministically for
+   * legacy records that predate this field.
+   */
+  colorSlot?: number;
+  /**
+   * Display order across projects. Normalized to a dense 0..n-1 range after
+   * every mutation; lowest renders first. Backfilled for legacy records.
+   */
+  order?: number;
+  /**
    * Optional display-only names for individual worktrees, keyed by the
    * normalized absolute worktree path. Used by the UI to render a stable
    * human-readable label without affecting Git or session identity.
@@ -46,6 +58,48 @@ export interface WorktreeComment {
   text: string;
   /** ISO timestamp when the comment was created. */
   createdAt: string;
+}
+
+/**
+ * Number of curated identity-color slots in the project palette. Must equal the
+ * count of `--p-*` tokens defined in `apps/web/src/index.css`.
+ */
+export const PROJECT_PALETTE_SIZE = 36;
+
+/**
+ * Maximum number of characters permitted in a project display name. Mirrors the
+ * worktree display-name bound; keeps stored metadata bounded and rail labels
+ * compact.
+ */
+export const PROJECT_DISPLAY_NAME_MAX_LENGTH = 120;
+
+/**
+ * Validate a project display name: trimmed, non-empty, bounded, and free of
+ * NUL/control characters. Same rules as a worktree display name.
+ */
+export function validateProjectDisplayName(
+  raw: unknown,
+): WorktreeDisplayNameValidation {
+  if (typeof raw !== "string") {
+    return { ok: false, message: "display name must be a string" };
+  }
+  const value = raw.trim();
+  if (value.length === 0) {
+    return { ok: false, message: "display name must not be empty" };
+  }
+  if (value.length > PROJECT_DISPLAY_NAME_MAX_LENGTH) {
+    return {
+      ok: false,
+      message: `display name must be at most ${PROJECT_DISPLAY_NAME_MAX_LENGTH} characters`,
+    };
+  }
+  if (/[\x00-\x1f\x7f]/.test(value)) {
+    return {
+      ok: false,
+      message: "display name must not contain control characters",
+    };
+  }
+  return { ok: true, value };
 }
 
 /**
@@ -227,6 +281,95 @@ export interface LoadOptions {
   filePath?: string;
 }
 
+/** Whether a value is a valid palette slot index in [0, PROJECT_PALETTE_SIZE). */
+function isValidColorSlot(slot: unknown): slot is number {
+  return (
+    typeof slot === "number" &&
+    Number.isInteger(slot) &&
+    slot >= 0 &&
+    slot < PROJECT_PALETTE_SIZE
+  );
+}
+
+/**
+ * Pick the least-used palette slot across the given records, breaking ties by
+ * the lowest slot index. Records without a valid slot are ignored. With at most
+ * PROJECT_PALETTE_SIZE distinct slots in use this returns an unused slot; beyond
+ * that it returns the least-repeated one, so colors only repeat once exhausted.
+ */
+export function assignProjectColorSlot(
+  projects: ReadonlyArray<Pick<ProjectRecord, "colorSlot">>,
+): number {
+  const counts = new Array<number>(PROJECT_PALETTE_SIZE).fill(0);
+  for (const p of projects) {
+    if (isValidColorSlot(p.colorSlot)) {
+      counts[p.colorSlot] = (counts[p.colorSlot] ?? 0) + 1;
+    }
+  }
+  let best = 0;
+  for (let i = 1; i < PROJECT_PALETTE_SIZE; i++) {
+    if (counts[i]! < counts[best]!) best = i;
+  }
+  return best;
+}
+
+/**
+ * Re-sort projects by effective display order and reassign a dense 0..n-1
+ * `order`. Records with a numeric `order` sort first by that value; records
+ * without one keep their incoming (file) order after them. Stable.
+ */
+function normalizeProjectsOrder(projects: ProjectRecord[]): ProjectRecord[] {
+  return projects
+    .map((p, index) => ({
+      p,
+      key:
+        typeof p.order === "number" && Number.isFinite(p.order)
+          ? p.order
+          : Number.MAX_SAFE_INTEGER - projects.length + index,
+      index,
+    }))
+    .sort((a, b) => (a.key !== b.key ? a.key - b.key : a.index - b.index))
+    .map(({ p }, i) => ({ ...p, order: i }));
+}
+
+/**
+ * Backfill missing identity fields deterministically: assign a least-used color
+ * slot to any record lacking a valid one (in creation order, so the assignment
+ * is independent of display order), then normalize display order to a dense
+ * range. In-memory only — persisted on the next save.
+ */
+function backfillProjectIdentity(projects: ProjectRecord[]): ProjectRecord[] {
+  let withSlots = projects;
+  if (projects.some((p) => !isValidColorSlot(p.colorSlot))) {
+    const byCreated = [...projects].sort((a, b) =>
+      a.createdAt !== b.createdAt
+        ? a.createdAt < b.createdAt
+          ? -1
+          : 1
+        : a.id < b.id
+          ? -1
+          : 1,
+    );
+    const assigned = new Map<string, number>();
+    const used: { colorSlot?: number }[] = [];
+    for (const p of byCreated) {
+      if (isValidColorSlot(p.colorSlot)) {
+        assigned.set(p.id, p.colorSlot);
+        used.push({ colorSlot: p.colorSlot });
+      }
+    }
+    for (const p of byCreated) {
+      if (!assigned.has(p.id)) {
+        const slot = assignProjectColorSlot(used);
+        assigned.set(p.id, slot);
+        used.push({ colorSlot: slot });
+      }
+    }
+    withSlots = projects.map((p) => ({ ...p, colorSlot: assigned.get(p.id)! }));
+  }
+  return normalizeProjectsOrder(withSlots);
+}
+
 export async function loadProjects(opts: LoadOptions = {}): Promise<ProjectRecord[]> {
   const path = opts.filePath ?? projectsFilePath(opts.env);
   const file = Bun.file(path);
@@ -274,6 +417,13 @@ export async function loadProjects(opts: LoadOptions = {}): Promise<ProjectRecor
       ...(typeof r.lastError === "string" && r.lastError.length > 0
         ? { lastError: r.lastError }
         : {}),
+      ...(isValidColorSlot((r as { colorSlot?: unknown }).colorSlot)
+        ? { colorSlot: (r as { colorSlot: number }).colorSlot }
+        : {}),
+      ...(typeof (r as { order?: unknown }).order === "number" &&
+      Number.isFinite((r as { order: number }).order)
+        ? { order: (r as { order: number }).order }
+        : {}),
       ...(worktreeDisplayNames
         ? { worktreeDisplayNames }
         : {}),
@@ -281,7 +431,7 @@ export async function loadProjects(opts: LoadOptions = {}): Promise<ProjectRecor
       ...(worktreeComments ? { worktreeComments } : {}),
     });
   }
-  return projects;
+  return backfillProjectIdentity(projects);
 }
 
 function sanitizeWorktreeDisplayNamesMap(
@@ -402,6 +552,8 @@ export async function registerProjectBySourcePath(
     displayName: opts.displayName ?? defaultDisplayName(normalized),
     createdAt: nowIso,
     lastSeenAt: nowIso,
+    colorSlot: assignProjectColorSlot(projects),
+    order: projects.length,
   };
   projects.push(created);
   await saveProjects(projects, opts);
@@ -424,6 +576,95 @@ export async function markProjectError(
   projects[idx] = updated;
   await saveProjects(projects, opts);
   return updated;
+}
+
+/**
+ * Rename a project's display name. Returns the updated record, or `null` when
+ * the project is not registered. The value is validated and trimmed; invalid
+ * input throws a `ProjectRegistryError`. Preserves id, source path, color slot,
+ * order, and worktree metadata.
+ */
+export async function renameProject(
+  id: string,
+  displayName: string,
+  opts: LoadOptions = {},
+): Promise<ProjectRecord | null> {
+  const validation = validateProjectDisplayName(displayName);
+  if (!validation.ok) throw new ProjectRegistryError(validation.message);
+  const projects = await loadProjects(opts);
+  const idx = projects.findIndex((p) => p.id === id);
+  if (idx < 0) return null;
+  const updated: ProjectRecord = {
+    ...projects[idx]!,
+    displayName: validation.value,
+  };
+  projects[idx] = updated;
+  await saveProjects(projects, opts);
+  return updated;
+}
+
+/**
+ * Set a project's identity color slot. Returns the updated record, or `null`
+ * when the project is not registered. An out-of-range or non-integer slot
+ * throws a `ProjectRegistryError`. The slot is fixed thereafter and will not be
+ * reassigned by later registrations of other projects.
+ */
+export async function setProjectColorSlot(
+  id: string,
+  colorSlot: number,
+  opts: LoadOptions = {},
+): Promise<ProjectRecord | null> {
+  if (!isValidColorSlot(colorSlot)) {
+    throw new ProjectRegistryError(
+      `color slot must be an integer in [0, ${PROJECT_PALETTE_SIZE})`,
+    );
+  }
+  const projects = await loadProjects(opts);
+  const idx = projects.findIndex((p) => p.id === id);
+  if (idx < 0) return null;
+  const updated: ProjectRecord = { ...projects[idx]!, colorSlot };
+  projects[idx] = updated;
+  await saveProjects(projects, opts);
+  return updated;
+}
+
+/**
+ * Move a project to a target display-order position (0-based). Uses a fractional
+ * insert (`target - 0.5`) then renormalizes all orders to a dense 0..n-1 range.
+ * Returns the updated record, or `null` when the project is not registered.
+ */
+export async function reorderProject(
+  id: string,
+  order: number,
+  opts: LoadOptions = {},
+): Promise<ProjectRecord | null> {
+  if (typeof order !== "number" || !Number.isFinite(order)) {
+    throw new ProjectRegistryError("project order must be a finite number");
+  }
+  const projects = await loadProjects(opts);
+  const idx = projects.findIndex((p) => p.id === id);
+  if (idx < 0) return null;
+  projects[idx] = { ...projects[idx]!, order: order - 0.5 };
+  const normalized = normalizeProjectsOrder(projects);
+  await saveProjects(normalized, opts);
+  return normalized.find((p) => p.id === id)!;
+}
+
+/**
+ * Remove a project from the registry, renormalizing the remaining projects'
+ * display order. Registry-only: it SHALL NOT delete, prune, or modify any Git
+ * worktree, branch, checkout, or container on disk. Returns the updated project
+ * list, or `null` when no project with the given id exists.
+ */
+export async function removeProject(
+  id: string,
+  opts: LoadOptions = {},
+): Promise<ProjectRecord[] | null> {
+  const projects = await loadProjects(opts);
+  if (!projects.some((p) => p.id === id)) return null;
+  const next = normalizeProjectsOrder(projects.filter((p) => p.id !== id));
+  await saveProjects(next, opts);
+  return next;
 }
 
 /** Read the persisted note for a worktree path, if any. */

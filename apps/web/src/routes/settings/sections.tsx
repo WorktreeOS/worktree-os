@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { AiProvidersPage } from "./pages/ai-providers";
 import { HealthchecksPage } from "./pages/healthchecks";
 import { NotificationsPage } from "./pages/notifications";
+import { ProjectsPage } from "./pages/projects";
 import { ServicesPage } from "./pages/services";
 import { StatusesPage } from "./pages/statuses";
 import { TerminalPage } from "./pages/terminal";
@@ -57,6 +58,12 @@ export const SETTINGS_SECTIONS: ReadonlyArray<SettingsSection> = [
     slug: "statuses",
     label: "Workflow statuses",
     Component: StatusesPage,
+    fieldPrefixes: [],
+  },
+  {
+    slug: "projects",
+    label: "Projects",
+    Component: ProjectsPage,
     fieldPrefixes: [],
   },
   {

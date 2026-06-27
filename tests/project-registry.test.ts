@@ -3,15 +3,21 @@ import { tmpdir } from "node:os";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
+  assignProjectColorSlot,
   getWorktreeDisplayName,
   getWorktreeNote,
   loadProjects,
   markProjectError,
+  PROJECT_PALETTE_SIZE,
   projectsFilePath,
   registerProjectBySourcePath,
+  removeProject,
   removeWorktreeDisplayName,
   removeWorktreeNote,
+  renameProject,
+  reorderProject,
   saveProjects,
+  setProjectColorSlot,
   setWorktreeDisplayName,
   setWorktreeNote,
   validateWorktreeDisplayName,
@@ -95,8 +101,9 @@ describe("project registry storage", () => {
     ];
     await saveProjects(recs, { filePath });
     const loaded = await loadProjects({ filePath });
+    // Legacy record (no colorSlot/order) is backfilled deterministically on load.
     expect(loaded).toEqual([
-      { ...recs[0]!, sourcePath: resolve("/repo/a") },
+      { ...recs[0]!, sourcePath: resolve("/repo/a"), colorSlot: 0, order: 0 },
     ]);
   });
 
@@ -135,6 +142,145 @@ describe("project registry storage", () => {
     expect(path).toBe(resolve("/custom", "projects.json"));
   });
 });
+
+describe("project identity: color slot, order, rename, removal", () => {
+  const reg = (path: string, n: number) =>
+    registerProjectBySourcePath(path, {
+      filePath,
+      newId: () => `id-${n}`,
+      now: () => new Date(`2026-05-${String(10 + n)}T00:00:00.000Z`),
+    });
+
+  test("assignProjectColorSlot picks least-used, ties to lowest index", () => {
+    expect(assignProjectColorSlot([])).toBe(0);
+    expect(assignProjectColorSlot([{ colorSlot: 0 }])).toBe(1);
+    expect(assignProjectColorSlot([{ colorSlot: 0 }, { colorSlot: 2 }])).toBe(1);
+    const all = Array.from({ length: PROJECT_PALETTE_SIZE }, (_, i) => ({
+      colorSlot: i,
+    }));
+    expect(assignProjectColorSlot(all)).toBe(0); // exhausted → wrap to lowest
+    expect(assignProjectColorSlot([{ colorSlot: -1 }, { colorSlot: 999 }])).toBe(
+      0,
+    ); // invalid ignored
+  });
+
+  test("sequential registration assigns the distinct color prefix and order", async () => {
+    const a = await reg("/repo/a", 1);
+    const b = await reg("/repo/b", 2);
+    const c = await reg("/repo/c", 3);
+    expect([
+      a.project.colorSlot,
+      b.project.colorSlot,
+      c.project.colorSlot,
+    ]).toEqual([0, 1, 2]);
+    expect([a.project.order, b.project.order, c.project.order]).toEqual([
+      0, 1, 2,
+    ]);
+  });
+
+  test("a removed project frees its slot for reuse and renormalizes order", async () => {
+    await reg("/repo/a", 1); // slot 0
+    await reg("/repo/b", 2); // slot 1
+    const removed = await removeProject("id-1", { filePath });
+    expect(removed!.map((p) => p.id)).toEqual(["id-2"]);
+    expect(removed![0]!.order).toBe(0);
+    const c = await reg("/repo/c", 3);
+    expect(c.project.colorSlot).toBe(0); // freed slot reused
+  });
+
+  test("removeProject is registry-only and returns null for unknown id", async () => {
+    await reg("/repo/a", 1);
+    expect(await removeProject("id-1", { filePath })).toEqual([]);
+    expect(await loadProjects({ filePath })).toEqual([]);
+    await reg("/repo/b", 2);
+    expect(await removeProject("nope", { filePath })).toBeNull();
+  });
+
+  test("reorderProject moves a project and renormalizes to a dense range", async () => {
+    await reg("/repo/a", 1);
+    await reg("/repo/b", 2);
+    await reg("/repo/c", 3);
+    const moved = await reorderProject("id-3", 0, { filePath });
+    expect(moved!.order).toBe(0);
+    const list = await loadProjects({ filePath });
+    expect(Object.fromEntries(list.map((p) => [p.id, p.order]))).toEqual({
+      "id-3": 0,
+      "id-1": 1,
+      "id-2": 2,
+    });
+  });
+
+  test("renameProject validates and preserves identity", async () => {
+    const a = await reg("/repo/a", 1);
+    const renamed = await renameProject("id-1", "  Renamed  ", { filePath });
+    expect(renamed!.displayName).toBe("Renamed");
+    expect(renamed!.id).toBe("id-1");
+    expect(renamed!.colorSlot).toBe(a.project.colorSlot);
+    await expect(renameProject("id-1", "  ", { filePath })).rejects.toThrow();
+    expect(await renameProject("nope", "x", { filePath })).toBeNull();
+  });
+
+  test("setProjectColorSlot validates range and persists; explicit slots stick", async () => {
+    await reg("/repo/a", 1); // slot 0
+    const updated = await setProjectColorSlot("id-1", 3, { filePath });
+    expect(updated!.colorSlot).toBe(3);
+    await expect(
+      setProjectColorSlot("id-1", -1, { filePath }),
+    ).rejects.toThrow();
+    await expect(
+      setProjectColorSlot("id-1", PROJECT_PALETTE_SIZE, { filePath }),
+    ).rejects.toThrow();
+    await expect(
+      setProjectColorSlot("id-1", 1.5, { filePath }),
+    ).rejects.toThrow();
+    expect(await setProjectColorSlot("nope", 1, { filePath })).toBeNull();
+    // a later registration must not reclaim the explicit slot
+    const b = await reg("/repo/b", 2);
+    expect(b.project.colorSlot).toBe(0); // least-used over {3}
+    const list = await loadProjects({ filePath });
+    expect(list.find((p) => p.id === "id-1")!.colorSlot).toBe(3);
+  });
+
+  test("backfills legacy records lacking colorSlot/order on load", async () => {
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: 1,
+        projects: [
+          {
+            id: "x",
+            sourcePath: "/repo/x",
+            displayName: "X",
+            createdAt: "2026-01-02T00:00:00.000Z",
+            lastSeenAt: "2026-01-02T00:00:00.000Z",
+          },
+          {
+            id: "y",
+            sourcePath: "/repo/y",
+            displayName: "Y",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            lastSeenAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+      }),
+    );
+    const loaded = await loadProjects({ filePath });
+    expect(loaded.map((p) => p.colorSlot).sort()).toEqual([0, 1]);
+    expect(loaded.map((p) => p.order).sort()).toEqual([0, 1]);
+    for (const p of loaded) {
+      expect(isValidSlot(p.colorSlot)).toBe(true);
+    }
+  });
+});
+
+function isValidSlot(slot: number | undefined): boolean {
+  return (
+    typeof slot === "number" &&
+    Number.isInteger(slot) &&
+    slot >= 0 &&
+    slot < PROJECT_PALETTE_SIZE
+  );
+}
 
 describe("worktree display name metadata", () => {
   test("validates trimmed, bounded, non-control values", () => {

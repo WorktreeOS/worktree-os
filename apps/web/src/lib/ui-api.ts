@@ -87,12 +87,25 @@ export interface ProjectSummary {
   sourcePath: string;
   createdAt: string;
   lastSeenAt: string;
+  /** Identity-color palette slot in [0, PROJECT_PALETTE_SIZE). */
+  colorSlot: number;
+  /** Display order across projects; dense 0..n-1, lowest renders first. */
+  order: number;
   error?: string;
   stale: boolean;
   worktrees: WorktreeSummary[];
 }
 
 export interface ProjectListResponse {
+  projects: ProjectSummary[];
+}
+
+export interface ProjectUpdateResponse {
+  project: ProjectSummary;
+  projects: ProjectSummary[];
+}
+
+export interface ProjectDeleteResponse {
   projects: ProjectSummary[];
 }
 
@@ -1313,6 +1326,36 @@ export function createUiApi(
           headers: { "content-type": "application/json" },
           body: JSON.stringify(req),
         }),
+      );
+    },
+    async updateProject(
+      id: string,
+      update: { displayName?: string; colorSlot?: number; order?: number },
+    ): Promise<ProjectUpdateResponse> {
+      const res = await apiFetch(
+        buildUrl(baseUrl, `/ui/v1/projects/${encodeURIComponent(id)}`),
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(update),
+        },
+      );
+      if (res.status === 400) {
+        const body = await readJsonSafe(res);
+        throw new UiValidationError(
+          (body as { message?: string })?.message ?? "invalid project",
+          body,
+          [],
+        );
+      }
+      return jsonOk(res);
+    },
+    async deleteProject(id: string): Promise<ProjectDeleteResponse> {
+      return jsonOk(
+        await apiFetch(
+          buildUrl(baseUrl, `/ui/v1/projects/${encodeURIComponent(id)}`),
+          { method: "DELETE" },
+        ),
       );
     },
     async listDirectories(path: string): Promise<DirectoryListResponse> {

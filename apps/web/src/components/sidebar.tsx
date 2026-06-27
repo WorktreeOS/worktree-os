@@ -90,8 +90,7 @@ import { ProjectSwitcher } from "@/components/ui/project-switcher";
 import { worktreeLabel } from "@/lib/sidebar-labels";
 import {
   applyProjectOrder,
-  readProjectOrder,
-  writeProjectOrder,
+  migrateProjectOrderToServer,
 } from "@/lib/sidebar-project-order";
 import {
   applyWorktreeOrder,
@@ -116,9 +115,10 @@ import {
   groupSessionsByAttention,
   type AttentionGroupKey,
   type AttentionResult,
+  type StreamOrderKey,
 } from "@/lib/sidebar-attention";
-import type { ProjectTileIdentity } from "@/lib/project-identity";
-import { projectTile } from "@/lib/project-identity";
+import type { WorktreeTileIdentity } from "@/lib/project-identity";
+import { worktreeTile } from "@/lib/project-identity";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { StreamSessionRow } from "@/components/ui/stream-session-row";
 import { AttentionGroupHeader } from "@/components/ui/attention-group-header";
@@ -132,6 +132,13 @@ const STREAM_GROUPS: ReadonlyArray<{ key: AttentionGroupKey; label: string }> = 
   { key: "idle", label: "Idle" },
 ];
 type StreamFilter = "all" | AttentionGroupKey;
+
+/* Sessions whose worktree is missing from the band order (defensive) sink to
+ * the bottom of their attention group rather than jumping the clustered rows. */
+const STREAM_ORDER_FALLBACK: StreamOrderKey = {
+  project: Number.MAX_SAFE_INTEGER,
+  worktree: Number.MAX_SAFE_INTEGER,
+};
 
 /** Last path segment — a stable label/identity for a session whose worktree is
  * no longer in the project list (defensive; normally every path resolves). */
@@ -371,15 +378,34 @@ export function Sidebar({
   const [bandCollapsed, setBandCollapsed] = useState<boolean>(() =>
     readBandCollapsed(),
   );
-  // Personal, per-browser ordering projected over canonical data at render time
-  // (the contexts keep emitting createdAt / registration order; these survive
-  // the 2.5s resync and reloads). See lib/sidebar-project-order + -worktree-order.
-  const [projectOrder, setProjectOrder] = useState<string[]>(() =>
-    readProjectOrder(),
-  );
+  // Project order is server-authoritative (persisted on each ProjectRecord); the
+  // list arrives already sorted. We mirror it as a local id order so a drag can
+  // reorder optimistically before the snapshot returns. Worktree order stays a
+  // per-browser projection. See lib/sidebar-project-order + -worktree-order.
+  const [projectOrder, setProjectOrder] = useState<string[]>([]);
   const [worktreeOrder, setWorktreeOrder] = useState<string[]>(() =>
     readWorktreeOrder(),
   );
+
+  // Mirror the server order locally whenever the project snapshot changes (also
+  // reconciles a just-committed drag back to the authoritative sequence).
+  useEffect(() => {
+    setProjectOrder(
+      [...projects].sort((a, b) => a.order - b.order).map((p) => p.id),
+    );
+  }, [projects]);
+
+  // One-time: replay any legacy localStorage project order to the server, then
+  // drop the key. Runs once a project snapshot is available.
+  const projectOrderMigrated = useRef(false);
+  useEffect(() => {
+    if (projectOrderMigrated.current || projects.length === 0) return;
+    projectOrderMigrated.current = true;
+    void migrateProjectOrderToServer({
+      projects,
+      reorder: (id, order) => api.updateProject(id, { order }),
+    });
+  }, [projects, api]);
 
   const { activeSessionId } = useActiveTerminal();
   const terminalCounts = useTerminalCountsMap();
@@ -450,9 +476,29 @@ export function Sidebar({
     return out;
   }, [allSessions, scope, pathIndex, activeProjectId]);
 
+  // Rank every worktree by where it sits in the band's manual order (project
+  // order → worktree order, same projection the band renders). The stream uses
+  // it to cluster sibling sessions so the rail and the band read in one order.
+  const streamOrder = useMemo(() => {
+    const map = new Map<string, StreamOrderKey>();
+    applyProjectOrder(projects, projectOrder).forEach((project, p) => {
+      applyWorktreeOrder(
+        sortWorktreesForSidebar(project.worktrees),
+        worktreeOrder,
+      ).forEach((wt, w) => {
+        map.set(wt.path, { project: p, worktree: w });
+      });
+    });
+    return map;
+  }, [projects, projectOrder, worktreeOrder]);
+
   const attention = useMemo(
-    () => groupSessionsByAttention(streamSessions),
-    [streamSessions],
+    () =>
+      groupSessionsByAttention(
+        streamSessions,
+        (s) => streamOrder.get(s.worktreePath) ?? STREAM_ORDER_FALLBACK,
+      ),
+    [streamSessions, streamOrder],
   );
 
   const reorderWorktrees = (
@@ -482,9 +528,10 @@ export function Sidebar({
     const oldIndex = fullIds.indexOf(activeProjectId);
     const newIndex = fullIds.indexOf(overProjectId);
     if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
-    const next = arrayMove(fullIds, oldIndex, newIndex);
-    writeProjectOrder(next);
-    setProjectOrder(next);
+    // Optimistic local reorder; persist to the server (it emits project.updated,
+    // which resyncs the snapshot — and with it projectOrder — back to truth).
+    setProjectOrder(arrayMove(fullIds, oldIndex, newIndex));
+    void api.updateProject(activeProjectId, { order: newIndex });
   };
 
   // One drag-end router for both band scopes. Sortable ids are namespaced
@@ -939,22 +986,29 @@ export function Sidebar({
               scopeLabel={
                 scope === "project" ? activeProject?.displayName : undefined
               }
+              // Active-now mixes projects, so the rows surface their project
+              // context; in a single project the scope already names it.
+              showProject={scope === "active-now"}
               touch={touchAffordances}
               activeSessionId={activeSessionId}
               resolve={(path) => {
                 const owner = pathIndex.get(path);
-                return owner
-                  ? {
-                      tile: projectTile(owner.project),
-                      worktreeName: worktreeLabel(owner.worktree),
-                    }
-                  : {
-                      tile: projectTile({
-                        id: path,
-                        displayName: pathBasename(path),
-                      }),
-                      worktreeName: pathBasename(path),
-                    };
+                if (owner) {
+                  const worktreeName = worktreeLabel(owner.worktree);
+                  return {
+                    tile: worktreeTile(owner.project, {
+                      path: owner.worktree.path,
+                      label: worktreeName,
+                    }),
+                    worktreeName,
+                    projectName: owner.project.displayName,
+                  };
+                }
+                const base = pathBasename(path);
+                return {
+                  tile: worktreeTile({ id: path }, { path, label: base }),
+                  worktreeName: base,
+                };
               }}
               onAttach={attachSession}
               onNewHere={createTerminal}
@@ -1665,7 +1719,7 @@ function WorktreeBandRow({
         <span
           className={cn(
             "min-w-0 flex-1 truncate font-mono",
-            touch ? "text-[14px]" : "text-[12.5px]",
+            touch ? "text-[13.5px]" : "text-[12px]",
             isActive
               ? "font-medium text-[color:var(--ink)]"
               : "text-[color:var(--ink-2)]",
@@ -1932,6 +1986,7 @@ function SessionsStream({
   attention,
   filter,
   scopeLabel,
+  showProject,
   touch,
   activeSessionId,
   resolve,
@@ -1942,11 +1997,13 @@ function SessionsStream({
   attention: AttentionResult;
   filter: StreamFilter;
   scopeLabel?: string;
+  showProject: boolean;
   touch: boolean;
   activeSessionId: string | null;
   resolve: (path: string) => {
-    tile: ProjectTileIdentity;
+    tile: WorktreeTileIdentity;
     worktreeName: string;
+    projectName?: string;
   };
   onAttach: (worktreePath: string, sessionId?: string) => void;
   onNewHere: (worktreePath: string) => void;
@@ -1989,13 +2046,17 @@ function SessionsStream({
               count={list.length}
             />
             {list.map((session) => {
-              const { tile, worktreeName } = resolve(session.worktreePath);
+              const { tile, worktreeName, projectName } = resolve(
+                session.worktreePath,
+              );
               return (
                 <StreamSessionRow
                   key={session.id}
                   session={session}
                   tile={tile}
                   worktreeName={worktreeName}
+                  projectName={projectName}
+                  showProject={showProject}
                   active={session.id === activeSessionId}
                   touch={touch}
                   onAttach={() => onAttach(session.worktreePath, session.id)}

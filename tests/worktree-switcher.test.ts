@@ -36,6 +36,8 @@ function project(
     sourcePath: `/src/${id}`,
     createdAt: "2026-01-01T00:00:00.000Z",
     lastSeenAt: "2026-01-01T00:00:00.000Z",
+    colorSlot: 0,
+    order: 0,
     stale: false,
     worktrees,
   };

@@ -29,6 +29,14 @@ export interface AttentionResult {
   counts: AttentionCounts;
 }
 
+/* Cluster key for the optional secondary ordering: where a session's worktree
+ * sits in the rail's manual band order (project rank, then worktree rank within
+ * that project). Lower ranks sort first; unknown paths sink to the bottom. */
+export interface StreamOrderKey {
+  project: number;
+  worktree: number;
+}
+
 /** ISO timestamp → epoch ms; missing / unparseable falls back to 0. */
 function ms(iso: string | undefined): number {
   if (!iso) return 0;
@@ -63,8 +71,28 @@ function recencyKey(s: TerminalSessionMetadata): number {
   );
 }
 
+/* When `orderKey` is supplied, the rows of a group are first clustered by the
+ * band's manual order (project, then worktree) so sibling sessions sit
+ * together; the group's time comparator only breaks ties inside one worktree.
+ * Array.sort is stable, so equal keys keep insertion order. Without `orderKey`
+ * the group falls back to the pure time order. */
+function groupComparator(
+  timeCmp: (a: TerminalSessionMetadata, b: TerminalSessionMetadata) => number,
+  orderKey?: (session: TerminalSessionMetadata) => StreamOrderKey,
+): (a: TerminalSessionMetadata, b: TerminalSessionMetadata) => number {
+  if (!orderKey) return timeCmp;
+  return (a, b) => {
+    const ka = orderKey(a);
+    const kb = orderKey(b);
+    if (ka.project !== kb.project) return ka.project - kb.project;
+    if (ka.worktree !== kb.worktree) return ka.worktree - kb.worktree;
+    return timeCmp(a, b);
+  };
+}
+
 export function groupSessionsByAttention(
   sessions: ReadonlyArray<TerminalSessionMetadata>,
+  orderKey?: (session: TerminalSessionMetadata) => StreamOrderKey,
 ): AttentionResult {
   const groups: AttentionGroups = {
     needsYou: [],
@@ -78,12 +106,20 @@ export function groupSessionsByAttention(
   }
 
   // Needs you — oldest wait first (askedAt ascending).
-  groups.needsYou.sort((a, b) => needsYouKey(a) - needsYouKey(b));
+  groups.needsYou.sort(
+    groupComparator((a, b) => needsYouKey(a) - needsYouKey(b), orderKey),
+  );
   // Unread — most recent output first (unreadSince descending).
-  groups.unread.sort((a, b) => ms(b.unreadSince) - ms(a.unreadSince));
+  groups.unread.sort(
+    groupComparator((a, b) => ms(b.unreadSince) - ms(a.unreadSince), orderKey),
+  );
   // Working / Idle — most recently active first.
-  groups.working.sort((a, b) => recencyKey(b) - recencyKey(a));
-  groups.idle.sort((a, b) => recencyKey(b) - recencyKey(a));
+  groups.working.sort(
+    groupComparator((a, b) => recencyKey(b) - recencyKey(a), orderKey),
+  );
+  groups.idle.sort(
+    groupComparator((a, b) => recencyKey(b) - recencyKey(a), orderKey),
+  );
 
   const counts: AttentionCounts = {
     needsYou: groups.needsYou.length,

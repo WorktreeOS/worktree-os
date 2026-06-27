@@ -81,6 +81,7 @@ import {
   publishOperationFinished,
   publishOperationStarted,
   publishProjectAdded,
+  publishProjectRemoved,
   publishProjectUpdated,
   publishStatusCatalogChanged,
   publishWorktreeBoardChanged,
@@ -99,8 +100,12 @@ import {
   loadProjects,
   ProjectRegistryError,
   registerProjectBySourcePath,
+  removeProject,
   removeWorktreeComment,
   removeWorktreeDisplayName,
+  renameProject,
+  reorderProject,
+  setProjectColorSlot,
   setWorktreeDisplayName,
   setWorktreeNote,
   type ProjectRecord,
@@ -234,9 +239,12 @@ import {
   type WorktreeUpConfigErrorBody,
   type ProjectAddRequest,
   type ProjectAddResponse,
+  type ProjectDeleteResponse,
   type ProjectListResponse,
   type ProjectPathValidateResponse,
   type ProjectSummary,
+  type ProjectUpdateRequest,
+  type ProjectUpdateResponse,
   type ServiceSummary,
   type WorktreeResourceUsage,
   type WorktreeCreateRequest,
@@ -877,6 +885,17 @@ export function createUiApiHandler(
       if (sub === "/projects" && req.method === "POST") {
         return handleProjectAdd(await safeJson<ProjectAddRequest>(req));
       }
+      if (sub.startsWith("/projects/") && req.method === "PATCH") {
+        const id = decodeURIComponent(sub.slice("/projects/".length));
+        return handleProjectUpdate(
+          id,
+          await safeJson<ProjectUpdateRequest>(req),
+        );
+      }
+      if (sub.startsWith("/projects/") && req.method === "DELETE") {
+        const id = decodeURIComponent(sub.slice("/projects/".length));
+        return handleProjectDelete(id);
+      }
       if (sub === "/projects/validate" && req.method === "GET") {
         // Filesystem-touching read endpoint — gated by the same public-host
         // policy as terminal access. Local clients are always allowed.
@@ -1472,6 +1491,80 @@ export function createUiApiHandler(
       }
       return errorResponse(500, "server-error", (e as Error).message);
     }
+  }
+
+  async function handleProjectUpdate(
+    id: string,
+    body: ProjectUpdateRequest | null,
+  ): Promise<Response> {
+    if (!id) return errorResponse(400, "validation", "project id is required");
+    if (
+      !body ||
+      (body.displayName === undefined &&
+        body.colorSlot === undefined &&
+        body.order === undefined)
+    ) {
+      return errorResponse(
+        400,
+        "validation",
+        "displayName, colorSlot, or order is required",
+      );
+    }
+    const opts = { filePath: projectsFilePath };
+    try {
+      let record: ProjectRecord | null = null;
+      if (body.displayName !== undefined) {
+        record = await renameProject(id, body.displayName, opts);
+        if (!record) {
+          return errorResponse(404, "not-found", `project ${id} not found`);
+        }
+      }
+      if (body.colorSlot !== undefined) {
+        record = await setProjectColorSlot(id, body.colorSlot, opts);
+        if (!record) {
+          return errorResponse(404, "not-found", `project ${id} not found`);
+        }
+      }
+      if (body.order !== undefined) {
+        record = await reorderProject(id, body.order, opts);
+        if (!record) {
+          return errorResponse(404, "not-found", `project ${id} not found`);
+        }
+      }
+      if (!record) {
+        return errorResponse(404, "not-found", `project ${id} not found`);
+      }
+      publishProjectUpdated(deps.events, record);
+      const project = await buildProjectSummary(record);
+      const projects = await loadProjects(opts);
+      const summaries = await Promise.all(
+        projects.map((p) => buildProjectSummary(p)),
+      );
+      return jsonResponse(200, {
+        project,
+        projects: summaries,
+      } satisfies ProjectUpdateResponse);
+    } catch (e) {
+      if (e instanceof ProjectRegistryError) {
+        return errorResponse(400, "validation", e.message);
+      }
+      return errorResponse(500, "server-error", (e as Error).message);
+    }
+  }
+
+  async function handleProjectDelete(id: string): Promise<Response> {
+    if (!id) return errorResponse(400, "validation", "project id is required");
+    // Registry-only: forgets the project from projects.json. It never touches
+    // on-disk worktrees, branches, checkouts, or containers.
+    const next = await removeProject(id, { filePath: projectsFilePath });
+    if (!next) return errorResponse(404, "not-found", `project ${id} not found`);
+    publishProjectRemoved(deps.events, id);
+    const summaries = await Promise.all(
+      next.map((p) => buildProjectSummary(p)),
+    );
+    return jsonResponse(200, {
+      projects: summaries,
+    } satisfies ProjectDeleteResponse);
   }
 
   async function handleDirectoryList(pathArg: string): Promise<Response> {
@@ -4692,6 +4785,8 @@ export function createUiApiHandler(
       sourcePath: record.sourcePath,
       createdAt: record.createdAt,
       lastSeenAt: record.lastSeenAt,
+      colorSlot: record.colorSlot ?? 0,
+      order: record.order ?? 0,
       ...(record.lastError ? { error: record.lastError } : {}),
       ...(error ? { error } : {}),
       stale,

@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { groupSessionsByAttention } from "./sidebar-attention";
+import {
+  groupSessionsByAttention,
+  type StreamOrderKey,
+} from "./sidebar-attention";
 import type {
   AgentActivityState,
   TerminalSessionMetadata,
@@ -12,12 +15,13 @@ interface SessionOpts {
   unreadSince?: string;
   telemetryUpdatedAt?: string;
   createdAt?: string;
+  worktreePath?: string;
 }
 
 function session(id: string, opts: SessionOpts = {}): TerminalSessionMetadata {
   return {
     id,
-    worktreePath: `/wt/${id}`,
+    worktreePath: opts.worktreePath ?? `/wt/${id}`,
     status: "running",
     shell: "zsh",
     cwd: `/wt/${id}`,
@@ -167,5 +171,59 @@ describe("groupSessionsByAttention — within-group ordering", () => {
       session("last", { createdAt: "2026-01-01T10:00:00Z" }),
     ]);
     expect(groups.idle.map((s) => s.id)).toEqual(["last", "first"]);
+  });
+});
+
+describe("groupSessionsByAttention — band-order clustering", () => {
+  // Band order: project 0 owns worktrees wA (rank 0) and wB (rank 1);
+  // project 1 owns wC (rank 0). Unknown paths sink to the bottom.
+  const RANKS: Record<string, StreamOrderKey> = {
+    "/p0/wA": { project: 0, worktree: 0 },
+    "/p0/wB": { project: 0, worktree: 1 },
+    "/p1/wC": { project: 1, worktree: 0 },
+  };
+  const orderKey = (s: { worktreePath: string }): StreamOrderKey =>
+    RANKS[s.worktreePath] ?? { project: 1e9, worktree: 1e9 };
+
+  test("clusters by project then worktree; recency breaks ties inside a worktree", () => {
+    const { groups } = groupSessionsByAttention(
+      [
+        session("b1", { activity: "working", worktreePath: "/p0/wB", telemetryUpdatedAt: "2026-01-01T10:00:00Z" }),
+        session("a-old", { activity: "working", worktreePath: "/p0/wA", telemetryUpdatedAt: "2026-01-01T08:00:00Z" }),
+        session("c1", { activity: "working", worktreePath: "/p1/wC", telemetryUpdatedAt: "2026-01-01T11:00:00Z" }),
+        session("a-new", { activity: "working", worktreePath: "/p0/wA", telemetryUpdatedAt: "2026-01-01T09:00:00Z" }),
+      ],
+      orderKey,
+    );
+    // p0/wA (newer→older), then p0/wB, then p1/wC — independent of recency
+    // across clusters; only within wA does recency order the two sessions.
+    expect(groups.working.map((s) => s.id)).toEqual([
+      "a-new",
+      "a-old",
+      "b1",
+      "c1",
+    ]);
+  });
+
+  test("unknown worktree paths sink to the bottom of their group", () => {
+    const { groups } = groupSessionsByAttention(
+      [
+        session("ghost", { activity: "working", worktreePath: "/gone" }),
+        session("known", { activity: "working", worktreePath: "/p0/wA" }),
+      ],
+      orderKey,
+    );
+    expect(groups.working.map((s) => s.id)).toEqual(["known", "ghost"]);
+  });
+
+  test("clustering holds across attention groups (same relative order)", () => {
+    const { groups } = groupSessionsByAttention(
+      [
+        session("idleC", { activity: "idle", worktreePath: "/p1/wC" }),
+        session("idleA", { activity: "idle", worktreePath: "/p0/wA" }),
+      ],
+      orderKey,
+    );
+    expect(groups.idle.map((s) => s.id)).toEqual(["idleA", "idleC"]);
   });
 });

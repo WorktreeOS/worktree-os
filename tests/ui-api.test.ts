@@ -9,7 +9,9 @@ import {
   withDaemonDefaults,
 } from "./helpers/daemon-test-harness.ts";
 import type { SessionContext } from "@worktreeos/core/session-context";
+import { existsSync } from "node:fs";
 import {
+  loadProjects,
   registerProjectBySourcePath,
   saveProjects,
 } from "@worktreeos/core/project-registry";
@@ -4191,5 +4193,125 @@ describe("UI API: worktree git status line", () => {
     expect(body.worktree.behindCount).toBeUndefined();
     expect(body.worktree.uncommittedCount).toBeUndefined();
     expect(body.worktree.lastCommitHash).toBeUndefined();
+  });
+});
+
+describe("UI API: project settings (patch/delete)", () => {
+  async function buildProjectSettingsHandler(names: string[]) {
+    const filePath = resolve(tmpHome, "projects.json");
+    const ids: string[] = [];
+    const dirs: string[] = [];
+    let n = 0;
+    for (const name of names) {
+      const dir = join(tmpHome, name);
+      await mkdir(dir, { recursive: true });
+      dirs.push(dir);
+      const r = await registerProjectBySourcePath(dir, {
+        filePath,
+        newId: () => `pid-${++n}`,
+      });
+      ids.push(r.project.id);
+    }
+    const { createUiApiHandler } = await import("@worktreeos/daemon/ui-api");
+    const { OperationRegistry } = await import(
+      "@worktreeos/daemon/operation-registry"
+    );
+    const { DaemonSessionRegistry } = await import(
+      "@worktreeos/daemon/daemon-sessions"
+    );
+    const { TunnelRegistry } = await import(
+      "@worktreeos/runtime/tunnel-registry"
+    );
+    const { DaemonEventBus } = await import("@worktreeos/daemon/event-bus");
+    const events = new DaemonEventBus();
+    const captured: Array<{ type: string }> = [];
+    events.subscribe((env) => captured.push(env.event as { type: string }));
+    const handler = createUiApiHandler({
+      registry: new OperationRegistry(),
+      sessions: new DaemonSessionRegistry({ starter: () => [] }),
+      tunnels: new TunnelRegistry(),
+      events,
+      projectsFilePath: filePath,
+      gitRunner: async () => "",
+      resolveSession: async () => fakeContext(),
+    });
+    return { handler, ids, dirs, captured, filePath };
+  }
+
+  const patch = (id: string, body: unknown) =>
+    new Request(`http://x/ui/v1/projects/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  test("PATCH renames a project and emits project.updated", async () => {
+    const { handler, ids, captured } = await buildProjectSettingsHandler(["a"]);
+    const res = await handler(patch(ids[0]!, { displayName: "Alpha" }));
+    expect(res!.status).toBe(200);
+    const body = (await res!.json()) as {
+      project: { displayName: string };
+      projects: unknown[];
+    };
+    expect(body.project.displayName).toBe("Alpha");
+    expect(captured.some((e) => e.type === "project.updated")).toBe(true);
+  });
+
+  test("PATCH recolors a project", async () => {
+    const { handler, ids } = await buildProjectSettingsHandler(["a"]);
+    const res = await handler(patch(ids[0]!, { colorSlot: 7 }));
+    expect(res!.status).toBe(200);
+    const body = (await res!.json()) as { project: { colorSlot: number } };
+    expect(body.project.colorSlot).toBe(7);
+  });
+
+  test("PATCH reorders projects to a dense range", async () => {
+    const { handler, ids } = await buildProjectSettingsHandler(["a", "b", "c"]);
+    const res = await handler(patch(ids[2]!, { order: 0 }));
+    expect(res!.status).toBe(200);
+    const body = (await res!.json()) as {
+      projects: Array<{ id: string; order: number }>;
+    };
+    const order = Object.fromEntries(body.projects.map((p) => [p.id, p.order]));
+    expect(order[ids[2]!]).toBe(0);
+    expect(order[ids[0]!]).toBe(1);
+    expect(order[ids[1]!]).toBe(2);
+  });
+
+  test("PATCH rejects an out-of-range color slot", async () => {
+    const { handler, ids } = await buildProjectSettingsHandler(["a"]);
+    const res = await handler(patch(ids[0]!, { colorSlot: 999 }));
+    expect(res!.status).toBe(400);
+    expect(((await res!.json()) as { error: string }).error).toBe("validation");
+  });
+
+  test("PATCH on an unknown project is 404", async () => {
+    const { handler } = await buildProjectSettingsHandler(["a"]);
+    const res = await handler(patch("nope", { displayName: "x" }));
+    expect(res!.status).toBe(404);
+  });
+
+  test("DELETE forgets the project but leaves its directory on disk", async () => {
+    const { handler, ids, dirs, captured, filePath } =
+      await buildProjectSettingsHandler(["a", "b"]);
+    const res = await handler(
+      new Request(`http://x/ui/v1/projects/${ids[0]}`, { method: "DELETE" }),
+    );
+    expect(res!.status).toBe(200);
+    const body = (await res!.json()) as { projects: Array<{ id: string }> };
+    expect(body.projects.some((p) => p.id === ids[0])).toBe(false);
+    expect(captured.some((e) => e.type === "project.removed")).toBe(true);
+    const remaining = await loadProjects({ filePath });
+    expect(remaining.some((p) => p.id === ids[0])).toBe(false);
+    // Registry-only: the source directory must still exist.
+    expect(existsSync(dirs[0]!)).toBe(true);
+  });
+
+  test("DELETE on an unknown project is 404", async () => {
+    const { handler } = await buildProjectSettingsHandler(["a"]);
+    const res = await handler(
+      new Request("http://x/ui/v1/projects/nope", { method: "DELETE" }),
+    );
+    expect(res!.status).toBe(404);
   });
 });

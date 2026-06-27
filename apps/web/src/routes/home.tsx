@@ -12,10 +12,6 @@ import type {
 import { worktreeLabel } from "@/lib/sidebar-labels";
 import { projectRunningCount } from "@/lib/sidebar-active-project";
 import {
-  applyProjectOrder,
-  readProjectOrder,
-} from "@/lib/sidebar-project-order";
-import {
   applyWorktreeOrder,
   readWorktreeOrder,
 } from "@/lib/sidebar-worktree-order";
@@ -104,8 +100,8 @@ export function HomeEmptyState() {
  * surfaces — selecting a worktree here just opens its workspace. */
 export function HomeOverview({ projects }: { projects: ProjectSummary[] }) {
   // Honor the global project / worktree order authored in the rail (read-only
-  // here — Home offers no drag affordance).
-  const orderedProjects = applyProjectOrder(projects, readProjectOrder());
+  // here — Home offers no drag affordance). Project order is server-authoritative.
+  const orderedProjects = [...projects].sort((a, b) => a.order - b.order);
   const worktreeOrder = readWorktreeOrder();
   // Rail collapse/expand lives in the page header (desktop), mirroring worktree.
   const sidebar = useOutletContext<SidebarOutletContext | null>();

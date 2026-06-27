@@ -5,7 +5,7 @@ import { hasMeaningfulTelemetry } from "@/lib/agent-telemetry";
 import { TelemetryCluster } from "@/components/ui/telemetry-cluster";
 import { ProjectTile } from "@/components/ui/project-tile";
 import { terminalAgent, terminalLabel } from "@/lib/terminal-agents";
-import type { ProjectTileIdentity } from "@/lib/project-identity";
+import type { WorktreeTileIdentity } from "@/lib/project-identity";
 import type { TerminalSessionMetadata } from "@/lib/terminal-protocol";
 
 /* StreamSessionRow — one live session in the rail's Sessions-mode stream (see
@@ -41,10 +41,14 @@ function sessionCommand(session: TerminalSessionMetadata): string {
 
 interface StreamSessionRowProps {
   session: TerminalSessionMetadata;
-  /** Deterministic project identity (color + monogram) for the tile. */
-  tile: ProjectTileIdentity;
+  /** Deterministic worktree identity (project hue + worktree monogram/tone). */
+  tile: WorktreeTileIdentity;
   /** Worktree/branch label shown on line 2. */
   worktreeName: string;
+  /** Owning project name — prefixed on line 2 when sessions span projects. */
+  projectName?: string;
+  /** Prefix the project name on line 2 (cross-project / Active-now stream). */
+  showProject?: boolean;
   onAttach: () => void;
   /** Start another session in the same worktree. */
   onNewHere: () => void;
@@ -58,6 +62,8 @@ export function StreamSessionRow({
   session,
   tile,
   worktreeName,
+  projectName,
+  showProject = false,
   onAttach,
   onNewHere,
   onKill,
@@ -125,6 +131,7 @@ export function StreamSessionRow({
       <ProjectTile
         monogram={tile.monogram}
         colorVar={tile.colorVar}
+        tone={tile.tone}
         working={working}
         size={touch ? 30 : 26}
       />
@@ -147,7 +154,7 @@ export function StreamSessionRow({
                 : active
                   ? "font-medium text-[color:var(--ink)]"
                   : "font-medium text-[color:var(--ink-2)]",
-              touch ? "text-[14.5px]" : "text-[13px]",
+              touch ? "text-[14px]" : "text-[12.5px]",
             )}
           >
             {label}
@@ -172,8 +179,8 @@ export function StreamSessionRow({
                   ? "font-medium text-[#F59E0B]"
                   : "font-mono text-[color:var(--muted-foreground)]",
                 touch
-                  ? "hidden text-[12.5px]"
-                  : "text-[11px] group-hover/srow:hidden",
+                  ? "hidden text-[12px]"
+                  : "text-[10.5px] group-hover/srow:hidden",
               )}
             >
               {ageText}
@@ -241,16 +248,24 @@ export function StreamSessionRow({
           )}
         </div>
 
-        {/* line 2 — worktree (+ command for shells) on the left, telemetry
-            cluster on the right. */}
+        {/* line 2 — worktree identity (project context in a cross-project
+            stream + the worktree/branch label, the latter at --ink-2 so it
+            reads as the row's worktree) and the command for shells, with the
+            telemetry cluster on the right. */}
         <div
           className={cn(
             "flex min-w-0 items-center gap-2",
-            touch ? "text-[12px]" : "text-[11.5px]",
+            touch ? "text-[11.5px]" : "text-[11px]",
           )}
         >
-          <span className="min-w-0 truncate font-mono text-[color:var(--muted-foreground)]">
-            {worktreeName}
+          <span className="min-w-0 truncate font-mono">
+            {showProject && projectName && (
+              <>
+                <span className="text-[color:var(--muted-foreground)]">{projectName}</span>
+                <span className="text-[color:var(--hair-2)]"> / </span>
+              </>
+            )}
+            <span className="text-[color:var(--ink-2)]">{worktreeName}</span>
             {command && (
               <>
                 <span className="text-[color:var(--hair-2)]"> · </span>

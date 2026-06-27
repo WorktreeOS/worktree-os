@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   PROJECT_ORDER_STORAGE_KEY,
   applyProjectOrder,
+  clearProjectOrder,
+  migrateProjectOrderToServer,
   readProjectOrder,
   writeProjectOrder,
 } from "./sidebar-project-order";
@@ -12,6 +14,9 @@ function fakeStorage(initial: Record<string, string> = {}) {
     getItem: (key: string) => map.get(key) ?? null,
     setItem: (key: string, value: string) => {
       map.set(key, value);
+    },
+    removeItem: (key: string) => {
+      map.delete(key);
     },
     map,
   };
@@ -89,5 +94,54 @@ describe("applyProjectOrder", () => {
     const out = applyProjectOrder(projects, ["p2"]);
     expect(out).not.toBe(projects);
     expect(projects.map((x) => x.id)).toEqual(["p1", "p2", "p3"]);
+  });
+});
+
+describe("migrateProjectOrderToServer", () => {
+  const projects = [
+    { id: "p1", order: 0 },
+    { id: "p2", order: 1 },
+    { id: "p3", order: 2 },
+  ];
+
+  test("no stored order is a no-op", async () => {
+    const calls: Array<[string, number]> = [];
+    const migrated = await migrateProjectOrderToServer({
+      projects,
+      reorder: async (id, order) => calls.push([id, order]),
+      storage: fakeStorage(),
+    });
+    expect(migrated).toBe(false);
+    expect(calls).toEqual([]);
+  });
+
+  test("replays the stored order to the server then clears the key", async () => {
+    const storage = fakeStorage({
+      [PROJECT_ORDER_STORAGE_KEY]: JSON.stringify(["p3", "p1"]),
+    });
+    const calls: Array<[string, number]> = [];
+    const migrated = await migrateProjectOrderToServer({
+      projects,
+      reorder: async (id, order) => calls.push([id, order]),
+      storage,
+    });
+    expect(migrated).toBe(true);
+    // stored ids lead in order; the rest follow by current server order.
+    expect(calls).toEqual([
+      ["p3", 0],
+      ["p1", 1],
+      ["p2", 2],
+    ]);
+    expect(readProjectOrder(storage)).toEqual([]);
+  });
+});
+
+describe("clearProjectOrder", () => {
+  test("removes the stored key", () => {
+    const storage = fakeStorage({
+      [PROJECT_ORDER_STORAGE_KEY]: JSON.stringify(["p1"]),
+    });
+    clearProjectOrder(storage);
+    expect(readProjectOrder(storage)).toEqual([]);
   });
 });

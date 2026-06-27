@@ -92,6 +92,7 @@ describe("settings route — section route table", () => {
       "healthchecks",
       "ai-providers",
       "statuses",
+      "projects",
       "notifications",
     ]);
     const labels = SETTINGS_SECTIONS.map((s) => s.label);
@@ -101,6 +102,7 @@ describe("settings route — section route table", () => {
     expect(labels).toContain("Healthchecks");
     expect(labels).toContain("AI providers");
     expect(labels).toContain("Workflow statuses");
+    expect(labels).toContain("Projects");
     expect(labels).toContain("Notifications");
   });
 

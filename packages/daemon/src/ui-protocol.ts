@@ -167,6 +167,10 @@ export interface ProjectSummary {
   sourcePath: string;
   createdAt: string;
   lastSeenAt: string;
+  /** Identity-color palette slot in [0, PROJECT_PALETTE_SIZE). */
+  colorSlot: number;
+  /** Display order across projects; dense 0..n-1, lowest renders first. */
+  order: number;
   /** Last validation/error message (e.g. stale path). */
   error?: string;
   /** True when the source path no longer resolves as a git worktree. */
@@ -193,6 +197,27 @@ export interface ProjectAddResponse {
 export interface ProjectAddErrorBody {
   error: "validation" | "git-error" | "server-error";
   message: string;
+}
+
+export interface ProjectUpdateRequest {
+  /** New display name. */
+  displayName?: string;
+  /** New identity-color palette slot in [0, PROJECT_PALETTE_SIZE). */
+  colorSlot?: number;
+  /** Target display-order position (0-based); the project is moved there. */
+  order?: number;
+}
+
+export interface ProjectUpdateResponse {
+  /** The updated project. */
+  project: ProjectSummary;
+  /** The full project list after the update (orders may have shifted). */
+  projects: ProjectSummary[];
+}
+
+export interface ProjectDeleteResponse {
+  /** The project list after removal. */
+  projects: ProjectSummary[];
 }
 
 export interface WorktreeDetailRequest {
