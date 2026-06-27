@@ -1,4 +1,17 @@
 #!/usr/bin/env bun
+// Hard-require Bun before anything else. This guard is valid under plain Node
+// ESM and runs above the `agent-hook` fast path and before any Bun-only API or
+// dynamic import is evaluated, so `npx`/`node`/accidental non-Bun invocations
+// fail with an actionable message instead of a cryptic runtime error. Bun is a
+// hard prerequisite (the bin shebang is `#!/usr/bin/env bun`); auto-installing
+// it is a non-goal. Keep the predicate in sync with `isBunRuntime()`.
+if (!process.versions?.bun) {
+  process.stderr.write(
+    "wos requires the Bun runtime. Install Bun: curl -fsSL https://bun.sh/install | bash\n",
+  );
+  process.exit(1);
+}
+
 const argv = process.argv.slice(2);
 
 // Fast path: `wos agent-hook <event> [--agent codex]` is the Claude Code /

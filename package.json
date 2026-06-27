@@ -15,6 +15,7 @@
     "docs": "bun run --filter @worktreeos/docs dev",
     "build:docs": "bun run --filter @worktreeos/docs build",
     "build:binary": "bun run scripts/build-binary.ts",
+    "build:dist": "bun run scripts/build-dist.ts",
     "dist": "bun run build:web && bun run apps/cli/index.ts restart",
     "test": "bun run scripts/run-tests.ts"
   },

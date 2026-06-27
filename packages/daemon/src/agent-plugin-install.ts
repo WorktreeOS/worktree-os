@@ -37,25 +37,43 @@ import {
   installCodexPluginCli,
   parseCodexPluginList,
 } from "./codex-plugin-cli";
+import { packagedPluginsDir } from "./packaged-layout";
 
 export type PluginAgent = "claude" | "opencode" | "codex" | "pi";
 
-/** Root of the bundled Claude Code plugin (plugin.json + hooks + scripts). */
-export function claudePluginRoot(): string {
+/**
+ * Root of the bundled Claude Code plugin (`.claude-plugin/plugin.json` + hooks
+ * + src). Under the published npm layout the plugin files are laid down as real
+ * files at `<pkgRoot>/plugins/claude`; in a source checkout they resolve to the
+ * in-repo `plugin-claude` package. `pluginsDir` defaults to the detected
+ * packaged layout (null in a source checkout); tests pass an assembled
+ * `dist/npm/plugins` to exercise the packaged branch.
+ */
+export function claudePluginRoot(
+  pluginsDir: string | null = packagedPluginsDir(),
+): string {
+  if (pluginsDir) return resolve(pluginsDir, "claude");
   return resolve(import.meta.dir, "../../plugin-claude");
 }
 
 /** Root of the bundled Codex plugin (`.codex-plugin/plugin.json` + hooks). */
-export function codexPluginRoot(): string {
+export function codexPluginRoot(
+  pluginsDir: string | null = packagedPluginsDir(),
+): string {
+  if (pluginsDir) return resolve(pluginsDir, "codex");
   return resolve(import.meta.dir, "../../plugin-codex");
 }
 
 /**
- * Entry written into the opencode config. The package is not published to
- * npm, so the entry is a `file://` URL pointing at the local source — the
- * layout-relative resolution mirrors `claudePluginRoot()`.
+ * Entry written into the opencode config: a `file://` URL pointing at the
+ * plugin source. Under the published npm layout this is the self-contained
+ * source shipped at `<pkgRoot>/plugins/opencode/src/index.ts`; in a source
+ * checkout it is the in-repo `plugin-opencode` source.
  */
-export function opencodePluginEntry(): string {
+export function opencodePluginEntry(
+  pluginsDir: string | null = packagedPluginsDir(),
+): string {
+  if (pluginsDir) return `file://${resolve(pluginsDir, "opencode/src/index.ts")}`;
   return `file://${resolve(import.meta.dir, "../../plugin-opencode/src/index.ts")}`;
 }
 
@@ -80,8 +98,16 @@ export function wosPiExtensionPath(env: NodeJS.ProcessEnv = process.env): string
   return resolve(piExtensionsDir(env), "wos", "index.ts");
 }
 
-/** Absolute path to the bundled pi extension source (the shim re-exports it). */
-export function piPluginEntry(): string {
+/**
+ * Absolute path to the bundled pi extension source (the shim re-exports it).
+ * Under the published npm layout this is the self-contained source shipped at
+ * `<pkgRoot>/plugins/pi/src/index.ts`; in a source checkout it is the in-repo
+ * `plugin-pi` source.
+ */
+export function piPluginEntry(
+  pluginsDir: string | null = packagedPluginsDir(),
+): string {
+  if (pluginsDir) return resolve(pluginsDir, "pi/src/index.ts");
   return resolve(import.meta.dir, "../../plugin-pi/src/index.ts");
 }
 

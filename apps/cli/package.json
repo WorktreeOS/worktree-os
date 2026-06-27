@@ -1,7 +1,7 @@
 {
   "name": "@worktreeos/cli",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.0.4",
+  "private": false,
   "type": "module",
   "module": "index.ts",
   "bin": {

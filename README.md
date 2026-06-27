@@ -60,6 +60,13 @@ curl -fsSL https://raw.githubusercontent.com/WorktreeOS/worktree-os/main/install
 irm https://raw.githubusercontent.com/WorktreeOS/worktree-os/main/install.ps1 | iex
 ```
 
+**Or install from npm with [Bun](https://bun.sh)** (Bun is required — wos runs only under the Bun runtime):
+
+```bash
+bunx @worktreeos/cli up           # zero-install trial: run any wos command
+bun install -g @worktreeos/cli    # persistent global install → `wos` on your PATH
+```
+
 **Deploy your first worktree** — run from inside any Git checkout:
 
 ```bash
