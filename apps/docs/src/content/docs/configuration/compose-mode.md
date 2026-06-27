@@ -3,6 +3,13 @@ title: Compose mode
 description: Plug WorktreeOS into your existing docker-compose.yaml with mode compose, publishing only the ports you list.
 ---
 
+:::caution[Early preview]
+Compose mode is an **early-preview** feature. It may be unstable, behave
+unexpectedly, or not work at all in some environments, and its configuration may
+change between releases. Use [generated mode](/configuration/generated-mode/)
+for anything you depend on.
+:::
+
 `mode: compose` plugs WorktreeOS into your repository's existing Docker Compose
 file instead of generating its own. Use it when your project already describes
 its topology through `docker-compose.yaml` and you want WorktreeOS sessions,

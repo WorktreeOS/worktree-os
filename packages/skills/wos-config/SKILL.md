@@ -22,21 +22,15 @@ Use this skill when you need to **read or reason about the deploy config** while
 
 If a worktree-scoped command fails with a "config not found" error, the missing file is in the primary worktree's `.wos/` directory, not the current secondary worktree.
 
-## Deployment modes
+## Deployment mode
 
-wos supports three modes:
+This skill covers **generated mode** (the default; or explicit `mode: generated`) — the stable, fully supported mode. wos generates the Docker Compose file from `app`, `deps`, `clone_volumes`, and `host_ports`; app services run as Docker containers. Generated mode is required for selective startup (`wos up app,api`, `wos up --target <name>`) and app-port healthchecks.
 
-- **Generated compose** (default; or explicit `mode: generated`). wos generates the Docker Compose file from `app`, `deps`, `clone_volumes`, and `host_ports`. App services run as Docker containers. Required for selective startup (`wos up app,api`, `wos up --target <name>`) and app-port healthchecks.
-- **Explicit compose** (`mode: compose`). wos uses a user-provided Compose file (`compose.config`) plus an overlay for exposed ports and env. Selective startup and app-port healthchecks are not supported; `wos status` only shows services listed in `compose.expose`.
-- **Shell** (`mode: shell`). wos runs each `app.services.<name>` as a **host shell process** (started with `Bun.spawn` in its own process group) instead of a Docker container. There is no Docker daemon dependency. It keeps the full worktree lifecycle — first-run setup, clone volumes, caches, selective startup, targets, runtime arguments, host-port allocation, app-port healthchecks, tunnels, and status/logs/stop/restart.
+Two other modes (`mode: compose` and `mode: shell`) are **early-preview** features — they may be unstable or not work at all, are out of scope for this skill, and are documented on the docs site. Assume generated mode unless the deploy config explicitly sets one of them.
 
-Mode selection: use **generated** for Dockerized apps with managed dependency containers (the default and most capable mode); **compose** when the user owns a hand-written Compose file wos should not rewrite; **shell** for projects that already run locally with native commands (`bun run dev`, `cargo run`, `python manage.py runserver`) and do not want Docker images, dependency containers, or volumes.
+Legacy fields (`volumes`, `init-script`, `publish`) are rejected with a migration error. If you see that error, the user must migrate to the current schema before running wos.
 
-If you are unsure which mode the user is in, look at the top of the deploy config for a `mode:` key, or for the presence of `compose:` (compose mode) vs `app:` / `deps:` (generated mode). Shell mode is always explicit (`mode: shell`).
-
-Legacy fields (`volumes`, `init-script`, `publish`, `compose` without `mode: compose`) are rejected with a migration error. If you see that error, the user must migrate to the current schema before running wos.
-
-## Generated-compose concepts (most common)
+## Generated-mode concepts
 
 ### Services: `app` and `deps`
 
@@ -95,11 +89,11 @@ Forms:
 - `src/path:dst/path` — copies `src/path` (in the source worktree) to `dst/path` (in the current worktree).
 - Either side may be an absolute path.
 
-If any source path is missing, `wos up` fails before init scripts and service startup (Docker Compose in generated/compose modes, host processes in shell mode). The worktree is not marked initialized on failure. `clone_volumes` works identically across all modes.
+If any source path is missing, `wos up` fails before init scripts and service startup. The worktree is not marked initialized on failure.
 
 ### Init scripts
 
-`app.init_script` is an ordered list of shell commands. On first run (or with `--force`), wos executes them inside a container built from `app.image` in generated/compose modes, or directly on the host from the worktree root in shell mode. Each command runs in its own subshell, so `cd` in one command does not leak into the next.
+`app.init_script` is an ordered list of shell commands. On first run (or with `--force`), wos executes them inside a container built from `app.image`. Each command runs in its own subshell, so `cd` in one command does not leak into the next.
 
 Use the init script for installs, codegen, or database seeding the user wants wos to manage. Init scripts can be cached via the top-level `cache` field; see the wos spec for cache details when the user asks about cache behavior.
 
@@ -112,66 +106,6 @@ wos resolves these templates inside service environment values before writing th
 - `${app.services.<name>.hostname[<port>]}` — tunnel hostname when global tunneling is active for that port, otherwise `localhost`. Dependency services do not support hostname templates.
 
 Templates that reference unknown services or ports fail validation with an actionable error.
-
-## Compose-mode concepts
-
-When the user is in `mode: compose`:
-
-- `compose.config` points to the user-owned Compose file. wos never rewrites it.
-- wos writes a sanitized base file and an overlay (managed exposed ports, env). Both are used at startup.
-- `compose.expose` lists service names to surface in `wos status`. Services not in this list are hidden from status output.
-- `compose.env_file` and `compose.environment` provide overlay env. Inline `environment` overrides values from `env_file`.
-
-Selective startup and app-port healthchecks are not available in compose mode. Use `wos status` to see what is exposed.
-
-## Shell-mode concepts
-
-When the user is in `mode: shell`, each `app.services.<name>` is a host process, not a container. The `app.services` shape is the same as generated mode, so most concepts (services, targets, healthchecks, clone volumes) carry over; the differences below are what changes because nothing runs in Docker.
-
-### Supported shell-service fields
-
-Per-service fields under `app.services.<name>`:
-
-- **`script`** — **required**. One or more startup commands, joined with `&&` and run via `sh -lc` in a detached process group from the worktree root (or `cwd`).
-- **`cwd`** — working directory for `script` and the service `init_script` (relative resolves against the worktree root; absolute is used as-is).
-- **`ports`** — logical service ports wos allocates host ports for. A number or `{ port, healthcheck?, allow_failure? }`, exactly as in generated mode.
-- **`env_file`** — `.env` file loaded into the process environment before inline `environment`.
-- **`environment`** — inline env vars; they override `env_file` and support the same template substitution as generated mode.
-- **`init_script`** — first-time commands specific to one service, run on the host after the global `app.init_script` and only when the service ends up in the final startup set.
-- **`dependencies`** — names of other app services this one depends on (used for selective startup; wos pulls in transitive dependencies automatically).
-
-### Supported related top-level sections
-
-- **`app.init_script`** — first-run commands, run once per worktree as host shell commands from the worktree root (not in a container).
-- **`clone_volumes`** — files copied from the source worktree on first run.
-- **`cache`** — global cache of first-run artifacts.
-- **`targets`** — named service sets for selective startup (`wos up --target <name>`).
-- **`arguments`** — runtime arguments passed with `--arg`.
-- **`host_ports.range`** — the pool host ports are allocated from.
-
-### Rejected Docker-only fields
-
-Because nothing runs in a container, these fields fail validation in shell mode:
-
-- `app.image` and `app.services.<name>.image` — shell mode runs host processes, not images.
-- `deps` — dependency containers are not available; run datastores yourself or declare them as additional `app.services`.
-- `app.services.<name>.volumes` — there is no container filesystem to mount into.
-- `connect_npm_cache`, `connect_yarn_cache`, `connect_bun_cache` — package-manager cache mounts require a Docker build/run.
-- `compose` — belongs to compose mode.
-
-### Shell-mode port binding
-
-A configured shell-service port is a **logical port** for which wos allocates a stable host port. Nothing rewrites the process's listening port, so **the service process must bind the allocated host port itself** (unlike Docker modes, where the process binds the container port and wos publishes the host port).
-
-wos injects two convenience variables describing the service's **first** configured port:
-
-- **`WOS_SERVICE_PORT`** — the allocated host port for the first configured service port.
-- **`WOS_SERVICE_HOSTNAME`** — the resolved hostname: the tunnel hostname when tunnels are active, `localhost` otherwise.
-
-The `WOS_*` variables are written last, so they always win over user-supplied values. The same pair is also injected into generated-mode containers, so service code works across both modes. For a service with multiple ports, `WOS_SERVICE_PORT` covers only the first; reference the others with exact templates in `environment`:
-
-- `${app.services.<name>.hostPort[<port>]}` — the allocated host port for a specific configured port.
-- `${app.services.<name>.hostname[<port>]}` — the active tunnel hostname for a specific configured port, or `localhost` when no tunnel is open.
 
 ## Global setup: terminal backend (tmux vs default)
 
@@ -186,17 +120,13 @@ When the effective backend is `default`, wos emits the literal warning **`Runnin
 
 | Concept | Where to look in the deploy config |
 | --- | --- |
-| Deployment mode | top-level `mode:` (or `compose:` / `app:` presence) |
+| Deployment mode | top-level `mode:` (`app:` / `deps:` presence ⇒ generated) |
 | Service names for selective startup | `app.services.*`, `deps.*` |
 | Named groups | `targets.*` |
 | Runtime arguments | `arguments` (passed with `--arg`) |
 | Host port range | `host_ports.range` |
 | App-port healthchecks | `app.services.<name>.ports` |
 | First-run files | `clone_volumes`, `app.init_script` |
-| Env file (compose mode) | `compose.env_file`, `compose.environment` |
-| Shell-mode service fields | `app.services.<name>.script` / `cwd` / `dependencies` (see Shell-mode concepts) |
-| Shell-mode rejected fields | `app.image`, `deps`, service `image` / `volumes`, `connect_*_cache`, `compose` |
-| Shell-mode port binding | `WOS_SERVICE_PORT` / `WOS_SERVICE_HOSTNAME`, `${app.services.<name>.hostPort[<port>]}` |
 
 ## Safety guidance
 

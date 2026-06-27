@@ -32,7 +32,7 @@ If the error message says wos must be run from inside a Git worktree:
 If the error names a deploy-config field, missing config, or migration:
 
 - The CLI reads the deploy config from the **primary/source worktree**'s `.wos/` directory on every command (`deploy.yaml` for the source/root worktree, `deploy.worktree.yaml` for secondary worktrees). Confirm the relevant file exists there.
-- Migration errors mention legacy fields (`volumes`, `init-script`, `publish`). The fix is to switch to `clone_volumes`, `app`, `deps`, or to use explicit `mode: compose`. See `wos-config` for the schema overview.
+- Migration errors mention legacy fields (`volumes`, `init-script`, `publish`). The fix is to switch to `clone_volumes`, `app`, and `deps`. See `wos-config` for the schema overview.
 - Healthcheck and port validation errors point at specific keys (for example `app.services.api.ports[0]`). Treat the error message as the source of truth and ask the user to update the deploy config.
 
 ### 3. Daemon health

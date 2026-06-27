@@ -3,6 +3,13 @@ title: Shell mode
 description: Run app services as host shell processes with mode shell — no Docker images, containers, or volumes, while keeping the WorktreeOS lifecycle.
 ---
 
+:::caution[Early preview]
+Shell mode is an **early-preview** feature. It may be unstable, behave
+unexpectedly, or not work at all in some environments, and its configuration may
+change between releases. Use [generated mode](/configuration/generated-mode/)
+for anything you depend on.
+:::
+
 `mode: shell` runs your app services as **host shell processes** instead of
 Docker containers. Use it for projects that already run locally with native
 commands (`bun run dev`, `cargo run`, `python manage.py runserver`, …) and do

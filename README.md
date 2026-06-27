@@ -145,10 +145,12 @@ ones. It supports three modes:
 
 - **`generated`** (default) — WorktreeOS generates the Compose file from `app`,
   `deps`, and `host_ports`. No hand-written `docker-compose.yaml`.
-- **`compose`** — plug into your repository's existing Compose file and publish
-  only the ports you list under `compose.expose`.
-- **`shell`** — run services as host processes (via `Bun.spawn`), no Docker
-  daemon required.
+- **`compose`** _(early preview)_ — plug into your repository's existing Compose
+  file and publish only the ports you list under `compose.expose`. May be
+  unstable or not work in some setups.
+- **`shell`** _(early preview)_ — run services as host processes (via
+  `Bun.spawn`), no Docker daemon required. May be unstable or not work in some
+  setups.
 
 <details>
 <summary><b>📄 Minimal <code>generated</code> example</b></summary>

@@ -29,6 +29,12 @@ The `mode` field selects the deployment mode:
   `image`/`volumes`, `deps`, package-manager cache mounts, `compose`) are
   forbidden. See [Shell mode](/configuration/shell-mode/).
 
+:::caution[Early preview]
+`mode: compose` and `mode: shell` are **early-preview** features — they may be
+unstable or not work at all in some setups. `mode: generated` is the stable
+default.
+:::
+
 ## Top-level keys
 
 | Key | Mode | Purpose |

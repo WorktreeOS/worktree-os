@@ -37,7 +37,7 @@ What happens under the hood (high level):
 4. wos polls configured app-port HTTP healthchecks until they pass, time out, or exhaust retries.
 5. On success, the CLI prints deployed services with addresses and the worktree detail URL.
 
-### Selective startup (generated-compose mode only)
+### Selective startup (generated mode only)
 
 You can deploy a subset of configured app/dep services. wos includes their transitive dependencies automatically.
 
