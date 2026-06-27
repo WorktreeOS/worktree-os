@@ -215,7 +215,6 @@ svg.lucide { stroke-width: 1.75; flex: none; vertical-align: middle; }
 }
 .brand__mark::before { width: 2px; height: 13px; left: 8px; top: 6.5px; }
 .brand__mark::after  { width: 2px; height: 13px; right: 8px; top: 6.5px; box-shadow: -4.5px 0 0 var(--shell); }
-.brand small { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.04em; font-weight: 500; align-self: flex-start; margin-top: 2px; }
 .nav__links { display: flex; gap: 4px; margin-left: 18px; }
 .nav__links a {
   font-size: 14px; color: var(--ink-2); padding: 7px 11px; border-radius: 8px;
@@ -302,27 +301,8 @@ svg.lucide { stroke-width: 1.75; flex: none; vertical-align: middle; }
 }
 .surface { background: var(--surface); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
-/* --- rail: brand + nav --------------------------------------------------- */
-.rail__brand { display: flex; align-items: center; padding: 12px 14px 4px; }
-.rail__brand .rb-name { flex: 1; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
-.rail__brand .rb-tools { display: inline-flex; gap: 2px; color: var(--muted); }
-.ibtn {
-  display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 7px;
-  border: 0; background: transparent; color: var(--muted); cursor: default;
-}
-.ibtn:hover { background: var(--hover); color: var(--ink); }
-.ibtn svg { width: 15px; height: 15px; }
-.rail__nav { display: flex; flex-direction: column; gap: 1px; padding: 2px 8px 4px; }
-.rnav {
-  display: inline-flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px;
-  border: 0; border-radius: 8px; background: transparent; color: var(--ink-2);
-  font: inherit; font-size: 13px; font-weight: 500; cursor: default; text-align: left;
-}
-.rnav:hover { background: var(--hover); color: var(--ink); }
-.rnav svg { width: 16px; height: 16px; color: var(--muted); }
-
 /* --- rail: scope --------------------------------------------------------- */
-.rail__head { padding: 8px 12px 6px; display: flex; align-items: center; gap: 8px; }
+.rail__head { padding: 10px 12px 6px; display: flex; align-items: center; gap: 8px; }
 .rail__scope {
   flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0;
   padding: 7px 9px; border-radius: 10px; background: var(--surface); border: 1px solid var(--hair-2);
@@ -431,12 +411,20 @@ svg.lucide { stroke-width: 1.75; flex: none; vertical-align: middle; }
 .rail__foot .av {
   width: 27px; height: 27px; border-radius: 50%; flex: none; display: grid; place-items: center;
   color: #fff; font-size: 12px; font-weight: 600;
-  background: linear-gradient(135deg, var(--accent-cmd), color-mix(in oklch, var(--accent-cmd) 55%, white));
+  background: linear-gradient(135deg, var(--ink), color-mix(in oklch, var(--ink) 60%, var(--muted)));
 }
-.rail__foot .who { line-height: 1.2; }
+.rail__foot .who { min-width: 0; line-height: 1.2; }
 .rail__foot .who b { font-size: 13px; font-weight: 500; display: block; }
 .rail__foot .who span { font-size: 11px; color: var(--muted); }
-.rail__foot .tools { margin-left: auto; color: var(--muted); display: inline-flex; gap: 2px; }
+/* relocated navigation: Home (projects / mission control) + theme + Settings */
+.rail__foot .tools { margin-left: auto; display: inline-flex; gap: 2px; }
+.ftico {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 6px;
+  border: 0; background: transparent; color: var(--muted); cursor: default;
+}
+.ftico:hover { background: var(--hover); color: var(--ink); }
+.ftico.is-on { background: var(--chip-bg); color: var(--ink); }
+.ftico svg { width: 15px; height: 15px; }
 
 /* --- surface: shared subheader ------------------------------------------- */
 .surf__head {
