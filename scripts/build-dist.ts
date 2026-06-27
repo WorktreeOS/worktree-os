@@ -24,7 +24,7 @@
  * plugin layout into a temp dir without rebuilding the heavy CLI bundle.
  */
 
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { chmod } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import tailwind from "bun-plugin-tailwind";
@@ -185,13 +185,35 @@ async function writePackageJson(outDir: string, version: string): Promise<void> 
     },
     homepage: "https://github.com/WorktreeOS/worktree-os",
     bin: { wos: "./wos.js" },
-    files: ["wos.js", "plugins", "README.md"],
+    files: ["wos.js", "web-dist", "plugins", "README.md"],
   });
 }
 
 /** Ship the repo README as the package's npm landing page. */
 function copyReadme(outDir: string): void {
   cpSync(resolve(repoRoot, "README.md"), resolve(outDir, "README.md"));
+}
+
+/**
+ * Copy the built web UI to `<outDir>/web-dist` so the daemon can serve it from
+ * disk under the packaged layout. The published bundle is a plain `bun`-target
+ * `wos.js` (not a `--compile` standalone), so `Bun.embeddedFiles` is empty and
+ * the web cannot be embedded — `resolveWebAssetRoot()` finds `web-dist` beside
+ * the bundle instead. Source maps are dev-only and dwarf the bundle, so they
+ * are never shipped. A missing `apps/web/dist` fails loudly: run `build:web`.
+ */
+function copyWebDist(outDir: string): void {
+  const src = resolve(repoRoot, "apps/web/dist");
+  if (!existsSync(src)) {
+    console.error(
+      "build-dist: apps/web/dist is missing — run `bun run build:web` before build:dist.",
+    );
+    process.exit(1);
+  }
+  cpSync(src, resolve(outDir, "web-dist"), {
+    recursive: true,
+    filter: (from) => !from.endsWith(".map"),
+  });
 }
 
 /** Assemble the complete publishable package into `outDir`. */
@@ -202,6 +224,7 @@ export async function assembleDist(opts: {
   rmSync(opts.outDir, { recursive: true, force: true });
   mkdirSync(opts.outDir, { recursive: true });
   await buildCliBundle(opts.outDir);
+  copyWebDist(opts.outDir);
   await layDownPlugins(opts.outDir);
   await writePackageJson(opts.outDir, opts.version);
   copyReadme(opts.outDir);

@@ -1,10 +1,16 @@
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import tailwind from "bun-plugin-tailwind";
 
 const root = import.meta.dir;
 const outdir = join(root, "dist");
+
+// Bun's bundler emits content-hashed chunk names but never prunes stale ones,
+// so the dir accumulates every past build (gigabytes of orphaned chunks +
+// source maps). Wipe it first so `dist` holds exactly the current build — both
+// for a clean dev serve and so the packaged `web-dist` ships only live files.
+await rm(outdir, { recursive: true, force: true });
 
 const result = await Bun.build({
   entrypoints: ["./index.html"],
