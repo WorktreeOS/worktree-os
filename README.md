@@ -51,8 +51,7 @@ service — all from one place.
 **Install the `wos` CLI with [Bun](https://bun.sh)** (Bun is required — wos runs only under the Bun runtime):
 
 ```bash
-bunx @worktreeos/cli up           # zero-install trial: run any wos command
-bun install -g @worktreeos/cli    # persistent global install → `wos` on your PATH
+bun install -g @worktreeos/cli    # global install → `wos` on your PATH
 ```
 
 **Or run from a source checkout:**
