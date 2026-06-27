@@ -404,20 +404,12 @@
           <h2 class="reveal-up">Bring your worktrees home.</h2>
           <p class="reveal-up">Clone, install, and open the web UI. Everything runs on your machine, under your daemon.</p>
           <div class="install reveal-up">
-            <div class="install__tabs" role="tablist" aria-label="Install target">
-              <button class="install__tab" id="os-unix" role="tab" aria-selected="true">
-                <i data-lucide="apple"></i> macOS / Linux
-              </button>
-              <button class="install__tab" id="os-win" role="tab" aria-selected="false">
-                <i data-lucide="app-window"></i> Windows
-              </button>
-            </div>
             <div class="install__cmd">
               <span class="p" id="install-prompt">$</span>
-              <code id="install-code">curl -fsSL https://raw.githubusercontent.com/WorktreeOS/worktree-os/main/install.sh | sh</code>
+              <code id="install-code">bun install -g @worktreeos/cli</code>
               <button class="btn btn--sm cp" id="copy" aria-label="Copy install command"><i data-lucide="copy"></i> Copy</button>
             </div>
-            <p class="install__note">One line installs the <span class="ic">wos</span> CLI and daemon. Then run <span class="ic">wos web</span> to open the UI.</p>
+            <p class="install__note">Installs the <span class="ic">wos</span> CLI with <a href="https://bun.sh" target="_blank" rel="noopener">Bun</a>. Then run <span class="ic">wos web</span> to open the UI.</p>
           </div>
           <div class="cta__row reveal-up">
             <a class="btn btn--solid" href="#demo"><i data-lucide="play"></i> Replay the demo</a>
