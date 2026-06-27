@@ -1,0 +1,8 @@
+{
+  "name": "wos",
+  "description": "WorktreeOS integration for Claude Code - reports agent activity (working, idle, questions) to the wos daemon",
+  "version": "0.5.1",
+  "author": {
+    "name": "WorktreeOS"
+  }
+}

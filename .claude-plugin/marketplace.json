@@ -1,0 +1,21 @@
+{
+  "name": "worktreeos",
+  "owner": {
+    "name": "WorktreeOS"
+  },
+  "metadata": {
+    "description": "WorktreeOS plugins for Claude Code.",
+    "version": "0.2.0"
+  },
+  "plugins": [
+    {
+      "name": "wos",
+      "description": "WorktreeOS integration for Claude Code - reports agent activity (working, idle, questions) to the wos daemon",
+      "version": "0.2.0",
+      "author": {
+        "name": "WorktreeOS"
+      },
+      "source": "./packages/plugin-claude"
+    }
+  ]
+}

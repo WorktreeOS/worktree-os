@@ -45,7 +45,6 @@ apps/web/types/
 .skills-lock.json
 .claude
 .agents
-.claude-plugin
 .codex
 .opencode
 
