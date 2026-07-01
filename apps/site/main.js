@@ -47,37 +47,13 @@
     reveals.forEach(function (el) { el.classList.add("in"); });
   }
 
-  // --- install: OS toggle + copy --------------------------------------------
-  var INSTALL = {
-    unix: { prompt: "$", cmd: "curl -fsSL https://raw.githubusercontent.com/WorktreeOS/worktree-os/main/install.sh | sh" },
-    win:  { prompt: "PS>", cmd: "irm https://raw.githubusercontent.com/WorktreeOS/worktree-os/main/install.ps1 | iex" },
-  };
-  var tabUnix = document.getElementById("os-unix");
-  var tabWin = document.getElementById("os-win");
+  // --- install: copy ---------------------------------------------------------
   var codeEl = document.getElementById("install-code");
-  var promptEl = document.getElementById("install-prompt");
   var copyBtn = document.getElementById("copy");
-  var currentOS = "unix";
 
-  function selectOS(os) {
-    currentOS = os;
-    codeEl.textContent = INSTALL[os].cmd;
-    promptEl.textContent = INSTALL[os].prompt;
-    tabUnix.setAttribute("aria-selected", os === "unix" ? "true" : "false");
-    tabWin.setAttribute("aria-selected", os === "win" ? "true" : "false");
-  }
-
-  if (tabUnix && tabWin && codeEl) {
-    // default to the visitor's platform
-    var ua = (navigator.userAgent || "") + " " + (navigator.platform || "");
-    if (/Win/i.test(ua)) selectOS("win"); else selectOS("unix");
-    tabUnix.addEventListener("click", function () { selectOS("unix"); });
-    tabWin.addEventListener("click", function () { selectOS("win"); });
-  }
-
-  if (copyBtn) {
+  if (copyBtn && codeEl) {
     copyBtn.addEventListener("click", function () {
-      var cmd = INSTALL[currentOS].cmd;
+      var cmd = codeEl.textContent;
       var done = function () {
         copyBtn.innerHTML = '<i data-lucide="check"></i> Copied';
         if (window.lucide) window.lucide.createIcons();

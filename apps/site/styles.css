@@ -852,21 +852,6 @@ svg.lucide { stroke-width: 1.75; flex: none; vertical-align: middle; }
 .cta h2 { margin: 16px auto 0; font-size: clamp(30px, 5vw, 54px); font-weight: 600; letter-spacing: -0.025em; line-height: 1.04; max-width: 18ch; }
 .cta p { margin: 18px auto 0; max-width: 520px; color: var(--ink-2); font-size: 17px; }
 .install { margin: 30px auto 0; max-width: 620px; }
-.install__tabs {
-  display: inline-flex; gap: 3px; padding: 4px; border-radius: 999px;
-  background: var(--chip-bg); margin-bottom: 14px;
-}
-.install__tab {
-  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 15px;
-  border: 0; border-radius: 999px; background: transparent; color: var(--muted);
-  font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
-  transition: background .14s, color .14s, box-shadow .14s;
-}
-.install__tab svg { width: 14px; height: 14px; }
-.install__tab[aria-selected="true"] {
-  background: var(--surface); color: var(--ink);
-  box-shadow: 0 1px 0 rgb(0 0 0 / 0.04), 0 1px 3px -1px rgb(0 0 0 / 0.14);
-}
 .install__cmd {
   display: flex; align-items: center; gap: 12px; text-align: left;
   padding: 14px 16px; border-radius: 12px; border: 1px solid var(--hair-2);

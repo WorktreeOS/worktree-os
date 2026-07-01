@@ -12,6 +12,8 @@
 
 import { resolve } from "node:path";
 
+import { packagedPluginsDir } from "./packaged-layout";
+
 export const CLAUDE_MARKETPLACE_NAME = "worktreeos";
 export const CLAUDE_PLUGIN_KEY = `wos@${CLAUDE_MARKETPLACE_NAME}`;
 
@@ -24,15 +26,18 @@ export type ClaudeCliRunner = (
 ) => Promise<{ exitCode: number; stderr: string }>;
 
 /**
- * Marketplace source handed to `claude plugin marketplace add`. Defaults to
- * the repository root (a valid local directory marketplace via the committed
- * `.claude-plugin/marketplace.json`); `WOS_CLAUDE_MARKETPLACE_SOURCE` overrides
- * it so packaged distributions can point at a GitHub repo or URL.
+ * Marketplace source handed to `claude plugin marketplace add`: a local
+ * directory carrying `.claude-plugin/marketplace.json`. `WOS_CLAUDE_MARKETPLACE_SOURCE`
+ * overrides it. Under the published npm layout it is the on-disk plugin dir
+ * laid down beside the bundle (`<pkgRoot>/plugins/claude`); in a source checkout
+ * it is the repository root (the committed `.claude-plugin/marketplace.json`).
  */
 export function claudeMarketplaceSource(
   env: NodeJS.ProcessEnv = process.env,
+  pluginsDir: string | null = packagedPluginsDir(),
 ): string {
   if (env.WOS_CLAUDE_MARKETPLACE_SOURCE) return env.WOS_CLAUDE_MARKETPLACE_SOURCE;
+  if (pluginsDir) return resolve(pluginsDir, "claude");
   return resolve(import.meta.dir, "../../..");
 }
 

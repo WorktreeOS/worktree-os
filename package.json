@@ -17,6 +17,7 @@
     "build:binary": "bun run scripts/build-binary.ts",
     "build:desktop": "bun run build:web && bun run build:binary && bun run --filter @worktreeos/desktop build",
     "build:desktop:release": "bun run build:web && bun run build:binary && bun run --filter @worktreeos/desktop build:release",
+    "build:dist": "bun run scripts/build-dist.ts",
     "dist": "bun run build:web && bun run apps/cli/index.ts restart",
     "test": "bun run scripts/run-tests.ts"
   },
@@ -31,5 +32,5 @@
   "peerDependencies": {
     "typescript": "^5"
   },
-  "version": "0.0.3"
+  "version": "0.0.7"
 }

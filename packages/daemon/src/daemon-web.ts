@@ -106,11 +106,14 @@ export function resolveWebAssetRoot(override?: string): string | undefined {
   if (override) {
     return existsSync(override) ? resolve(override) : undefined;
   }
-  // packages/daemon/src/daemon-web.ts → ../../apps/web/dist (source layout)
+  // packages/daemon/src/daemon-web.ts → ../../apps/web/dist (source layout).
+  // Under the packaged npm layout this code is inlined into `wos.js`, so
+  // `import.meta.url` points at the bundle and `here` is the package root —
+  // the published web build sits in `web-dist` right beside it.
   const here = fileURLToPath(new URL(".", import.meta.url));
   const candidates = [
     resolve(here, "../../../apps/web/dist"),
-    resolve(here, "../../web-dist"),
+    resolve(here, "web-dist"),
   ];
   for (const c of candidates) {
     if (existsSync(c)) return c;

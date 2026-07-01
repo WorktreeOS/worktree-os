@@ -18,6 +18,8 @@
 
 import { resolve } from "node:path";
 
+import { packagedPluginsDir } from "./packaged-layout";
+
 export const CODEX_MARKETPLACE_NAME = "worktreeos";
 export const CODEX_PLUGIN_NAME = "wos";
 export const CODEX_PLUGIN_KEY = `${CODEX_PLUGIN_NAME}@${CODEX_MARKETPLACE_NAME}`;
@@ -38,15 +40,18 @@ export interface CodexPluginListStatus {
 }
 
 /**
- * Marketplace source handed to `codex plugin marketplace add`. Defaults to the
- * repository root (a valid local directory marketplace via the committed
- * `.agents/plugins/marketplace.json`); `WOS_CODEX_MARKETPLACE_SOURCE` overrides
- * it so packaged distributions can point at a GitHub repo or URL.
+ * Marketplace source handed to `codex plugin marketplace add`: a local
+ * directory carrying `.agents/plugins/marketplace.json`. `WOS_CODEX_MARKETPLACE_SOURCE`
+ * overrides it. Under the published npm layout it is the on-disk plugin dir
+ * laid down beside the bundle (`<pkgRoot>/plugins/codex`); in a source checkout
+ * it is the repository root (the committed `.agents/plugins/marketplace.json`).
  */
 export function codexMarketplaceSource(
   env: NodeJS.ProcessEnv = process.env,
+  pluginsDir: string | null = packagedPluginsDir(),
 ): string {
   if (env.WOS_CODEX_MARKETPLACE_SOURCE) return env.WOS_CODEX_MARKETPLACE_SOURCE;
+  if (pluginsDir) return resolve(pluginsDir, "codex");
   return resolve(import.meta.dir, "../../..");
 }
 

@@ -21,10 +21,19 @@ a minimal deploy config, and your first `wos up`, `wos web`, and `wos down`.
 
 ## Install
 
-Install workspace dependencies from the repository root:
+The quickest path is a global install with Bun (Bun is the only runtime
+requirement):
+
+```bash
+bun install -g @worktreeos/cli    # global install → `wos` on your PATH
+```
+
+Or run from a source checkout. Install workspace dependencies from the
+repository root:
 
 ```bash
 bun install
+bun link            # optional: put `wos` on your PATH
 ```
 
 You can then run the CLI through Bun:
@@ -34,7 +43,8 @@ bun run wos <command>
 ```
 
 The rest of these docs write commands as `wos <command>`. If you have not put
-`wos` on your `PATH`, read that as `bun run wos <command>`.
+`wos` on your `PATH` (via `bun install -g` or `bun link`), read that as
+`bun run wos <command>`.
 
 ## Write a minimal deploy config
 

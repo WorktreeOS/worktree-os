@@ -37,44 +37,73 @@ import {
   installCodexPluginCli,
   parseCodexPluginList,
 } from "./codex-plugin-cli";
+import { packagedPluginsDir } from "./packaged-layout";
 
 export type PluginAgent = "claude" | "opencode" | "codex" | "pi";
 
 /**
  * Resolve a bundled plugin package directory (`plugin-claude`, `plugin-codex`,
- * …). Normally these live beside the daemon source (`packages/<pkg>`). When the
- * daemon runs from a bundle whose module graph is flattened (e.g. the desktop
- * app), `import.meta.dir` has no sibling package dirs, so external agent
- * runtimes — which read these files directly and cannot see Bun's `/$bunfs/` —
- * would fail. `WOS_PLUGIN_ROOT_DIR` overrides the base directory so a host can
- * point resolution at on-disk plugin resources. Unset → unchanged behavior.
+ * …), reconciling three layouts:
+ *   - `WOS_PLUGIN_ROOT_DIR` override — when the daemon runs from a bundle whose
+ *     module graph is flattened (e.g. the desktop app), `import.meta.dir` has no
+ *     sibling package dirs and external agent runtimes cannot read Bun's
+ *     `/$bunfs/`; the host points resolution at on-disk resources copied as
+ *     `plugin-<agent>` dirs.
+ *   - published npm layout — `pluginsDir` (detected via `packagedPluginsDir()`,
+ *     null in a source checkout) holds the plugins as `<pluginsDir>/<agent>`.
+ *   - source checkout — the in-repo `packages/plugin-<agent>` package.
+ */
+function resolvePluginPkgDir(
+  pkg: string,
+  pluginsDir: string | null,
+  env: NodeJS.ProcessEnv,
+): string {
+  const override = env.WOS_PLUGIN_ROOT_DIR;
+  if (override && override.length > 0) return resolve(override, pkg);
+  if (pluginsDir) return resolve(pluginsDir, pkg.replace(/^plugin-/, ""));
+  return resolve(import.meta.dir, "../..", pkg);
+}
+
+/**
+ * Resolve a bundled plugin package directory by name (`plugin-claude`, …).
+ * Honors the `WOS_PLUGIN_ROOT_DIR` override for flattened bundles, then the
+ * detected packaged layout, then the source tree.
  */
 export function pluginPackageRoot(
   pkg: string,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  const override = env.WOS_PLUGIN_ROOT_DIR;
-  if (override && override.length > 0) return resolve(override, pkg);
-  return resolve(import.meta.dir, "../..", pkg);
-}
-
-/** Root of the bundled Claude Code plugin (plugin.json + hooks + scripts). */
-export function claudePluginRoot(): string {
-  return pluginPackageRoot("plugin-claude");
-}
-
-/** Root of the bundled Codex plugin (`.codex-plugin/plugin.json` + hooks). */
-export function codexPluginRoot(): string {
-  return pluginPackageRoot("plugin-codex");
+  return resolvePluginPkgDir(pkg, packagedPluginsDir(), env);
 }
 
 /**
- * Entry written into the opencode config. The package is not published to
- * npm, so the entry is a `file://` URL pointing at the local source — the
- * layout-relative resolution mirrors `claudePluginRoot()`.
+ * Root of the bundled Claude Code plugin (`.claude-plugin/plugin.json` + hooks
+ * + src). `pluginsDir` defaults to the detected packaged layout (null in a
+ * source checkout); tests pass an assembled `dist/npm/plugins`.
  */
-export function opencodePluginEntry(): string {
-  return `file://${resolve(pluginPackageRoot("plugin-opencode"), "src/index.ts")}`;
+export function claudePluginRoot(
+  pluginsDir: string | null = packagedPluginsDir(),
+): string {
+  return resolvePluginPkgDir("plugin-claude", pluginsDir, process.env);
+}
+
+/** Root of the bundled Codex plugin (`.codex-plugin/plugin.json` + hooks). */
+export function codexPluginRoot(
+  pluginsDir: string | null = packagedPluginsDir(),
+): string {
+  return resolvePluginPkgDir("plugin-codex", pluginsDir, process.env);
+}
+
+/**
+ * Entry written into the opencode config: a `file://` URL pointing at the
+ * plugin source. Under the published npm layout this is the self-contained
+ * source shipped at `<pkgRoot>/plugins/opencode/src/index.ts`; in a source
+ * checkout it is the in-repo `plugin-opencode` source.
+ */
+export function opencodePluginEntry(
+  pluginsDir: string | null = packagedPluginsDir(),
+): string {
+  return `file://${resolve(resolvePluginPkgDir("plugin-opencode", pluginsDir, process.env), "src/index.ts")}`;
 }
 
 /**
@@ -98,9 +127,16 @@ export function wosPiExtensionPath(env: NodeJS.ProcessEnv = process.env): string
   return resolve(piExtensionsDir(env), "wos", "index.ts");
 }
 
-/** Absolute path to the bundled pi extension source (the shim re-exports it). */
-export function piPluginEntry(): string {
-  return resolve(pluginPackageRoot("plugin-pi"), "src/index.ts");
+/**
+ * Absolute path to the bundled pi extension source (the shim re-exports it).
+ * Under the published npm layout this is the self-contained source shipped at
+ * `<pkgRoot>/plugins/pi/src/index.ts`; in a source checkout it is the in-repo
+ * `plugin-pi` source. Honors `WOS_PLUGIN_ROOT_DIR` for flattened bundles.
+ */
+export function piPluginEntry(
+  pluginsDir: string | null = packagedPluginsDir(),
+): string {
+  return resolve(resolvePluginPkgDir("plugin-pi", pluginsDir, process.env), "src/index.ts");
 }
 
 /**

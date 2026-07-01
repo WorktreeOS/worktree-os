@@ -29,6 +29,7 @@ import {
   getAgentPluginStatus,
   injectOpencodePlugin,
 } from "@worktreeos/daemon/agent-plugin-install";
+import { ensurePersistentCli } from "@worktreeos/daemon/launch-mode";
 import {
   isLoopbackHost,
   parseInitArgs,
@@ -138,6 +139,13 @@ export async function runInit(argv: string[]): Promise<number> {
   }
 
   const platform = process.platform;
+
+  // When launched ephemerally (`bunx @worktreeos/cli`), establish a persistent
+  // `wos` on the login PATH before wiring agent plugins, so the static
+  // `wos agent-hook` hook command resolves in future shells. No-op for the
+  // compiled binary, a global install, or a source checkout. Best-effort.
+  await ensurePersistentCli({ log: write });
+
   const existing = await loadGlobalConfig();
   const host = args.host ?? existing.web.host;
   const port = args.port ?? existing.web.port;

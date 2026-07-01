@@ -48,16 +48,20 @@ service — all from one place.
 
 ## ⚡ Quick Start
 
-**Install the `wos` binary** (no Bun, no source checkout required):
+**Install the `wos` CLI with [Bun](https://bun.sh)** (Bun is required — wos runs only under the Bun runtime):
 
 ```bash
-# macOS · Linux
-curl -fsSL https://raw.githubusercontent.com/WorktreeOS/worktree-os/main/install.sh | sh
+bun install -g @worktreeos/cli    # global install → `wos` on your PATH
 ```
 
-```powershell
-# Windows (PowerShell) — native, no WSL
-irm https://raw.githubusercontent.com/WorktreeOS/worktree-os/main/install.ps1 | iex
+**Or run from a source checkout:**
+
+```bash
+git clone https://github.com/WorktreeOS/worktree-os
+cd worktree-os
+bun install
+bun link            # put `wos` on your PATH
+wos up              # or run through Bun without linking: bun run wos up
 ```
 
 **Deploy your first worktree** — run from inside any Git checkout:
@@ -75,15 +79,13 @@ URL in the web UI. See [Get started](apps/docs/src/content/docs/start/get-starte
 for a minimal config and a full walkthrough.
 
 <details>
-<summary><b>🧰 Run from source instead</b></summary>
+<summary><b>🧰 Compile a standalone binary</b></summary>
 
 ```bash
-git clone https://github.com/WorktreeOS/worktree-os
-cd worktree-os
-bun install
-bun run wos up          # run the CLI through Bun
-bun run build:binary    # or compile a standalone dist/wos
+bun run build:binary    # compile a standalone dist/wos (no Bun needed to run it)
 ```
+
+See [Release binary](apps/docs/src/content/docs/reference/release-binary.md) for details.
 
 </details>
 
