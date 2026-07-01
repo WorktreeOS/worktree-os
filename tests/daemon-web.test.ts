@@ -269,17 +269,24 @@ describe("daemon web listener", () => {
     expect(body.error).toBe("not-found");
   });
 
-  test("fail-fast: port already in use → daemon startup rejects", async () => {
+  test("port already in use → daemon binds the next free port and records it", async () => {
     const blocker = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("x") });
     try {
-      await expect(
-        startDaemon(
-          withDaemonDefaults(tmpHome, {
-            resolveSession: async () => ({}) as any,
-            web: { port: blocker.port },
-          }),
-        ),
-      ).rejects.toThrow(`${blocker.port}`);
+      daemon = await startDaemon(
+        withDaemonDefaults(tmpHome, {
+          resolveSession: async () => ({}) as any,
+          web: { port: blocker.port },
+          // Skip the restart EADDRINUSE retry window so the free-port fallback
+          // is exercised immediately.
+          bindRetryMs: 0,
+        }),
+      );
+      const boundPort = Number(new URL(daemon.webUrl).port);
+      expect(boundPort).not.toBe(blocker.port);
+      const meta = JSON.parse(await readFile(metadataPath, "utf8")) as DaemonMetadata;
+      expect(meta.webPort).toBe(boundPort);
+      const res = await fetch(`${daemon.webUrl}/ui/v1/health`);
+      expect(res.status).toBe(200);
     } finally {
       blocker.stop(true);
     }

@@ -53,6 +53,7 @@ import { NotificationService } from "./notifications/service";
 import { loadOrCreateVapidKeys } from "./notifications/vapid";
 import { TranscriptTelemetryReader } from "./terminal-layer/transcript-telemetry";
 import { ensureAgentPluginsInjected } from "./agent-plugin-install";
+import { selectNextFreePort } from "./setup-environment";
 import { createUiApiHandler } from "./ui-api";
 import { isCompiledStandalone } from "./daemon-bootstrap";
 import {
@@ -85,6 +86,33 @@ import { DockerClient } from "./docker/docker-client";
  * differently there). Idempotent: skips the prepend when the directory is
  * already first.
  */
+/**
+ * Upper bound on distinct ports the free-port fallback will attempt to bind
+ * before giving up. Generous: the next free port is almost always within a
+ * handful of the preferred one, and this only guards against a pathological
+ * scan when a huge contiguous range is occupied.
+ */
+const FREE_PORT_FALLBACK_ATTEMPTS = 64;
+
+/**
+ * Synchronous port-free probe via a throwaway loopback bind. Advisory only: it
+ * feeds `selectNextFreePort` to pick a candidate, but the real `Bun.serve` bind
+ * remains authoritative (the fallback loop re-probes on a lost race).
+ */
+function probePortFree(port: number, host: string): boolean {
+  try {
+    const server = Bun.listen({
+      hostname: host,
+      port,
+      socket: { data() {}, open() {}, close() {}, error() {} },
+    });
+    server.stop(true);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function prependBinaryDir(
   currentPath: string | undefined,
   execPath: string = process.execPath,
@@ -213,6 +241,12 @@ export interface DaemonOptions {
    * `<wos-home>/config.json`.
    */
   logger?: DaemonLogger;
+  /**
+   * Injectable first-run setup-environment probes/runners for the
+   * `/ui/v1/setup/*` onboarding endpoints (tests). Forwarded verbatim to the UI
+   * API handler; each field defaults to the real host probe.
+   */
+  setupEnvironment?: import("./ui-api").UiApiDependencies["setupEnvironment"];
 }
 
 export interface DaemonHandle {
@@ -619,6 +653,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<DaemonHandl
       web
         ? { host: web.hostname, port: web.port, scheme: web.scheme }
         : undefined,
+    ...(opts.setupEnvironment
+      ? { setupEnvironment: opts.setupEnvironment }
+      : {}),
   });
 
   const terminalWs = createTerminalLayerWsHandlers(terminalLayer);
@@ -671,11 +708,52 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<DaemonHandl
     if (!addressInUse || Date.now() >= bindDeadline) break;
     await new Promise((resolve) => setTimeout(resolve, BIND_RETRY_INTERVAL_MS));
   }
+  // Free-port fallback: the configured/default port is still busy after the
+  // restart-retry window. Rather than fail startup, probe upward for the next
+  // free port and bind it — the effective port is recorded in daemon metadata
+  // below (from `web.port`), so discovery and agents follow the selected port.
+  // Only applies to a concrete non-zero preferred port (port 0 already means
+  // "let the OS pick a free port"). A non-EADDRINUSE error is not a port
+  // conflict and falls through to the hard failure below.
+  const preferredPort = webOpts.port ?? 0;
+  if (
+    !web &&
+    preferredPort !== 0 &&
+    (bindError as NodeJS.ErrnoException | undefined)?.code === "EADDRINUSE"
+  ) {
+    const host = webOpts.host ?? "127.0.0.1";
+    let searchFrom = preferredPort + 1;
+    for (
+      let attempt = 0;
+      attempt < FREE_PORT_FALLBACK_ATTEMPTS && searchFrom <= 65535;
+      attempt++
+    ) {
+      const candidate = selectNextFreePort(searchFrom, (p) => probePortFree(p, host));
+      bindError = undefined;
+      web = await startDaemonWeb(
+        { ...webOpts, port: candidate, onBindError: (e) => (bindError = e) },
+        { uiApiHandler, websocketHandlers: terminalWs },
+      );
+      if (web) {
+        process.stderr.write(
+          `wos daemon: web.port ${preferredPort} is in use; bound free port ${candidate} instead\n`,
+        );
+        break;
+      }
+      // A race lost the candidate to another listener; probe past it. A
+      // non-EADDRINUSE error is not a port conflict — stop and let the hard
+      // failure below report it.
+      if ((bindError as NodeJS.ErrnoException | undefined)?.code !== "EADDRINUSE") {
+        break;
+      }
+      searchFrom = candidate + 1;
+    }
+  }
   if (!web) {
     const host = webOpts.host ?? "127.0.0.1";
     const port = webOpts.port ?? 0;
     throw new Error(
-      `daemon web listener could not bind ${host}:${port}: ${bindError?.message ?? "unknown error"}. ` +
+      `daemon web listener could not bind ${host}:${port}: ${(bindError as Error | undefined)?.message ?? "unknown error"}. ` +
         `Free the port or change web.host/web.port in the global config.`,
     );
   }

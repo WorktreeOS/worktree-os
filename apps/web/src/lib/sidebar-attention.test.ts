@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  classifySessionAttention,
   groupSessionsByAttention,
+  orderSessionsForTreeNode,
   type StreamOrderKey,
 } from "./sidebar-attention";
 import type {
@@ -225,5 +227,67 @@ describe("groupSessionsByAttention — band-order clustering", () => {
       orderKey,
     );
     expect(groups.idle.map((s) => s.id)).toEqual(["idleA", "idleC"]);
+  });
+});
+
+describe("classifySessionAttention — direct precedence", () => {
+  test("awaiting-input → needsYou", () => {
+    expect(classifySessionAttention(session("a", { activity: "awaiting-input" }))).toBe(
+      "needsYou",
+    );
+  });
+
+  test("awaiting-input outranks unread", () => {
+    expect(
+      classifySessionAttention(
+        session("a", { activity: "awaiting-input", unreadSince: "2026-01-01T00:00:00Z" }),
+      ),
+    ).toBe("needsYou");
+  });
+
+  test("unread (not awaiting) → unread", () => {
+    expect(
+      classifySessionAttention(session("a", { unreadSince: "2026-01-01T00:00:00Z" })),
+    ).toBe("unread");
+  });
+
+  test("working (no unread) → working", () => {
+    expect(classifySessionAttention(session("a", { activity: "working" }))).toBe(
+      "working",
+    );
+  });
+
+  test("idle / plain shell → idle", () => {
+    expect(classifySessionAttention(session("a", { activity: "idle" }))).toBe("idle");
+    expect(classifySessionAttention(session("a"))).toBe("idle");
+  });
+});
+
+describe("orderSessionsForTreeNode", () => {
+  test("orders needsYou, unread, working, idle in that order", () => {
+    const ordered = orderSessionsForTreeNode([
+      session("idle1", { activity: "idle" }),
+      session("working1", { activity: "working" }),
+      session("unread1", { unreadSince: "2026-01-01T00:00:00Z" }),
+      session("needsYou1", { activity: "awaiting-input" }),
+    ]);
+    expect(ordered.map((s) => s.id)).toEqual([
+      "needsYou1",
+      "unread1",
+      "working1",
+      "idle1",
+    ]);
+  });
+
+  test("within a group, falls back to that group's own comparator", () => {
+    const ordered = orderSessionsForTreeNode([
+      session("new", { activity: "awaiting-input", askedAt: "2026-01-01T10:00:00Z" }),
+      session("old", { activity: "awaiting-input", askedAt: "2026-01-01T08:00:00Z" }),
+    ]);
+    expect(ordered.map((s) => s.id)).toEqual(["old", "new"]);
+  });
+
+  test("empty input yields an empty array", () => {
+    expect(orderSessionsForTreeNode([])).toEqual([]);
   });
 });

@@ -1,6 +1,7 @@
 import type { CSSProperties, Ref } from "react";
 import {
   ArrowRight,
+  CircleAlert,
   GripVertical,
   PenLine,
   Terminal as TerminalIcon,
@@ -52,9 +53,11 @@ export function agentActivityWord(state: AgentActivityState): string {
   }
 }
 
-/* TerminalSessionRow — one open session in the rail's Terminals view (see
- * demo/side-menu-v4.html). Two lines so an agent session can carry its
- * telemetry without a tooltip:
+/* TerminalSessionRow — one session row with no project tile, for contexts
+ * where the surrounding structure already establishes the worktree (the v4
+ * rail tree's session children — see demo/sidebar-worktree-tree-v4.html).
+ * Two/three lines so an agent session can carry its telemetry without a
+ * tooltip:
  *
  *   line 1 — a leading status object (hollow dot = idle, brand-tinted spinner
  *     = working, amber dot = awaiting input, hollow muted = exited) + the agent
@@ -65,6 +68,8 @@ export function agentActivityWord(state: AgentActivityState): string {
  *     cluster on the right (context meter + context tokens in use + total token
  *     spend; the meter/context count turn red past the warn threshold). For
  *     plain shells: the active command, no telemetry cluster.
+ *   line 3 — an amber permission/question line, awaiting-input sessions only
+ *     (mirrors StreamSessionRow's question line).
  *
  * Exited / killed sessions render de-emphasised with a hollow dot. */
 
@@ -122,6 +127,8 @@ export function TerminalSessionRow({
   // PTY lifecycle presentation while the session is live.
   const activity = live ? session.agentActivity : undefined;
   const working = activity?.state === "working";
+  const awaitingInput = activity?.state === "awaiting-input";
+  const question = awaitingInput ? activity?.question : undefined;
   const Icon = agent?.icon ?? TerminalIcon;
   // A user title wins over the agent/shell label; falls back to the shell name.
   const label = terminalLabel(session, session.shell);
@@ -163,7 +170,9 @@ export function TerminalSessionRow({
         // fill to read as selected: pair it with a hairline inset ring.
         active
           ? "bg-sidebar-active shadow-[inset_0_0_0_1px_var(--hair-2)]"
-          : "hover:bg-sidebar-hover",
+          : awaitingInput
+            ? "bg-[color-mix(in_oklch,#F59E0B_8%,transparent)]"
+            : "hover:bg-sidebar-hover",
         !live && "opacity-50",
         isDragging && "opacity-60",
       )}
@@ -362,6 +371,20 @@ export function TerminalSessionRow({
           >
             {subtitle && <span className="min-w-0 flex-1 truncate">{subtitle}</span>}
             {telemetry && <TelemetryCluster telemetry={telemetry} touch={touch} />}
+          </div>
+        )}
+
+        {/* permission / question line — awaiting-input rows only. */}
+        {question && (
+          <div
+            data-testid="rail-terminal-question"
+            className={cn(
+              "flex min-w-0 items-center gap-1.5 font-medium text-[#F59E0B]",
+              touch ? "text-[12px]" : "text-[11.5px]",
+            )}
+          >
+            <CircleAlert className="size-[13px] shrink-0" strokeWidth={1.75} aria-hidden />
+            <span className="min-w-0 truncate">{question.summary}</span>
           </div>
         )}
       </div>

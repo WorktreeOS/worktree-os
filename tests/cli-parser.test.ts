@@ -106,25 +106,30 @@ describe("main() command dispatch", () => {
     expect(stdoutChunks.join("")).toContain("wait");
   });
 
-  test("bare wos routes to the setup wizard (not usage)", async () => {
+  test("bare wos starts the daemon (not usage, not the wizard)", async () => {
     captureStdio();
-    let received: string[] | undefined;
+    let startArgs: string[] | undefined;
+    let initCalled = false;
     const code = await main([], {
-      runInit: async (argv) => {
-        received = argv;
+      runStart: async (argv) => {
+        startArgs = argv;
+        return 0;
+      },
+      runInit: async () => {
+        initCalled = true;
         return 0;
       },
     });
     expect(code).toBe(0);
-    expect(received).toEqual([]);
+    expect(startArgs).toEqual([]);
+    expect(initCalled).toBe(false);
     expect(stdoutChunks.join("")).not.toContain("wos [--cwd <path>] <command>");
   });
 
-  test("init is a known command and routes to the wizard without a config", async () => {
+  test("init is a known command and routes to non-interactive setup", async () => {
     captureStdio();
     let called = false;
     const code = await main(["init", "--yes"], {
-      hasGlobalConfig: () => false,
       runInit: async (argv) => {
         called = true;
         expect(argv).toEqual(["--yes"]);
@@ -133,31 +138,21 @@ describe("main() command dispatch", () => {
     });
     expect(code).toBe(0);
     expect(called).toBe(true);
-    expect(stderrChunks.join("")).not.toContain("no configuration found");
   });
 
-  test("gate blocks a non-wizard command when no global config exists", async () => {
+  test("commands run without a pre-existing config (no gate)", async () => {
     captureStdio();
-    let daemonContacted = false;
-    const code = await main(["status"], {
-      hasGlobalConfig: () => false,
-      runInit: async () => {
-        daemonContacted = true;
+    // `start` is the only command with an injectable seam; the point is that
+    // main() no longer short-circuits with a "no configuration found" gate.
+    let started = false;
+    const code = await main(["start"], {
+      runStart: async () => {
+        started = true;
         return 0;
       },
     });
-    expect(code).toBe(1);
-    expect(stderrChunks.join("")).toContain(
-      "no configuration found. Run `wos init` to set up.",
-    );
-    expect(daemonContacted).toBe(false);
-  });
-
-  test("gate allows help without a config", async () => {
-    captureStdio();
-    const code = await main(["help"], { hasGlobalConfig: () => false });
     expect(code).toBe(0);
-    expect(stdoutChunks.join("")).toContain("wos [--cwd <path>] <command>");
+    expect(started).toBe(true);
     expect(stderrChunks.join("")).not.toContain("no configuration found");
   });
 
@@ -170,7 +165,7 @@ describe("main() command dispatch", () => {
 
   test("unknown command returns 2", async () => {
     captureStdio();
-    const code = await main(["bogus"], { hasGlobalConfig: () => true });
+    const code = await main(["bogus"]);
     expect(code).toBe(2);
     expect(stderrChunks.join("")).toContain("unknown command: bogus");
   });
@@ -184,14 +179,14 @@ describe("main() command dispatch", () => {
 
   test("exec without a service returns 2 and prints usage without daemon contact", async () => {
     captureStdio();
-    const code = await main(["exec"], { hasGlobalConfig: () => true });
+    const code = await main(["exec"]);
     expect(code).toBe(2);
     expect(stderrChunks.join("")).toContain("wos exec <service>");
   });
 
   test("worktree without subcommand prints usage and returns 0", async () => {
     captureStdio();
-    const code = await main(["worktree"], { hasGlobalConfig: () => true });
+    const code = await main(["worktree"]);
     expect(code).toBe(0);
     expect(stdoutChunks.join("")).toContain("wos worktree <subcommand>");
     expect(stdoutChunks.join("")).toContain("remove [--force]");
@@ -199,16 +194,14 @@ describe("main() command dispatch", () => {
 
   test("worktree unknown subcommand returns 2", async () => {
     captureStdio();
-    const code = await main(["worktree", "bogus"], { hasGlobalConfig: () => true });
+    const code = await main(["worktree", "bogus"]);
     expect(code).toBe(2);
     expect(stderrChunks.join("")).toContain("unknown subcommand: bogus");
   });
 
   test("worktree remove with unknown flag returns 2", async () => {
     captureStdio();
-    const code = await main(["worktree", "remove", "--bogus"], {
-      hasGlobalConfig: () => true,
-    });
+    const code = await main(["worktree", "remove", "--bogus"]);
     expect(code).toBe(2);
     expect(stderrChunks.join("")).toContain("unknown argument: --bogus");
   });
@@ -226,7 +219,7 @@ describe("main() command dispatch", () => {
 
   test("daemon is no longer a documented top-level command", async () => {
     captureStdio();
-    const code = await main(["daemon"], { hasGlobalConfig: () => true });
+    const code = await main(["daemon"]);
     expect(code).toBe(2);
     expect(stderrChunks.join("")).toContain("unknown command: daemon");
   });

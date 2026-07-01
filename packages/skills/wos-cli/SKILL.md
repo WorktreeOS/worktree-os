@@ -20,33 +20,31 @@ Use this skill as your **entry point** for any task that drives the wos CLI. It 
 - **Daemon-backed.** Worktree-scoped CLI commands talk to a local `wos` daemon. The CLI auto-starts the daemon if no healthy one is responding on the wos socket.
 - **Non-interactive output.** Foreground commands stream text to stderr/stdout; they do not open a TUI.
 
-## First-run setup gate
+## First-run startup and onboarding
 
-wos requires a global config file (`<wos-home>/config.json`, default `~/.wos/config.json`) before it will run worktree or daemon commands. Until it exists, **every command except the wizard entrypoints and help** fails with:
+wos runs on built-in defaults — **there is no config gate**. Commands work with no `config.json` present; `<wos-home>/config.json` (default `~/.wos/config.json`) is written lazily when settings are saved or onboarding completes.
 
-```
-wos: no configuration found. Run `wos init` to set up.
-```
-
-- Bare `wos` (no arguments) and `wos init` always launch the setup wizard (bare `wos` no longer prints usage — use `wos help` / `-h` / `--help`).
-- The wizard collects the daemon bind address, port, terminal backend (tmux vs default — see `wos-config`), and agent-plugin integration, then writes the config. With an existing config it runs as a reconfigure flow, pre-filling current values.
-- **Headless / CI / Dockerfiles**: use the non-interactive path so the gate never blocks automation:
+- **Bare `wos` (no arguments) starts the local daemon** — it is equivalent to `wos start` and prints the web UI URL. It no longer launches a wizard or prints usage (use `wos help` / `-h` / `--help`).
+- **First-run onboarding lives in the web UI**, not the CLI. Open the printed URL to a readiness checklist (web port · Docker · Docker Compose v2 · tmux/psmux · agent plugins), each with a status and an action. The CLI never prompts.
+- If the configured/default port `4949` is busy, the daemon binds the next free port and records it in `<wos-home>/daemon.json`; the web UI shows a "port changed" notice.
+- **Headless / CI / Dockerfiles**: `wos init` is a non-interactive command that applies defaults + flags and writes the config without prompting:
 
   ```sh
-  # Apply defaults without prompting.
-  wos init --yes
+  # Apply defaults, no prompts.
+  wos init
 
-  # Fully specified non-interactive setup.
-  wos init --host 127.0.0.1 --port 4949 --backend tmux --install-tmux --yes
+  # Fully specified non-interactive setup (--yes is accepted as a no-op).
+  wos init --host 127.0.0.1 --port 4949 --backend tmux --install-tmux --install-plugins
   ```
 
-  With `--yes` (or whenever stdin is not a TTY) the wizard applies defaults plus any provided flags and persists without prompting.
+  `wos init` never blocks on a missing Docker/Compose install (that surfaces later as a web onboarding item).
 
 ## Command map
 
 | Command | What it does | Worktree required |
 | --- | --- | --- |
-| `wos init` (also bare `wos`) | Run the first-run / reconfigure setup wizard; writes the global config. `--yes` for non-interactive. | No |
+| `wos` (bare) | Start the local daemon (≡ `wos start`) and print the web UI URL. First-run onboarding happens in the web UI. | No |
+| `wos init` | Non-interactive setup for CI/automation: apply defaults + flags and write the global config without prompting. | No |
 | `wos up [services] [--target <name>] [--force]` | Deploy the current worktree via Docker Compose (foreground stream). | Yes |
 | `wos up -d [--force]` | Submit deployment to the daemon and return immediately. | Yes |
 | `wos down` | Stop and remove wos-managed containers for the current worktree. | Yes |

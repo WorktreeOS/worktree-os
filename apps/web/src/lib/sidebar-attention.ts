@@ -9,6 +9,22 @@ import type { TerminalSessionMetadata } from "./terminal-protocol";
 
 export type AttentionGroupKey = "needsYou" | "unread" | "working" | "idle";
 
+/** The stream/tree filter union — every attention group plus the "all" catch-all. */
+export type StreamFilter = "all" | AttentionGroupKey;
+
+/** Attention groups in render order, with the label the filter bar / group
+ * headers show. Shared by the v3 stream and the v4 tree so the two variants
+ * can never drift on group naming or order. */
+export const STREAM_GROUPS: ReadonlyArray<{
+  key: AttentionGroupKey;
+  label: string;
+}> = [
+  { key: "needsYou", label: "Needs you" },
+  { key: "unread", label: "Unread" },
+  { key: "working", label: "Working" },
+  { key: "idle", label: "Idle" },
+];
+
 export interface AttentionGroups {
   needsYou: TerminalSessionMetadata[];
   unread: TerminalSessionMetadata[];
@@ -48,8 +64,12 @@ function ms(iso: string | undefined): number {
  *   1. awaiting-input → Needs you (wins even if also unread)
  *   2. else unread output present → Unread
  *   3. else working → Working
- *   4. else → Idle (idle agents and plain shells alike). */
-function classify(session: TerminalSessionMetadata): AttentionGroupKey {
+ *   4. else → Idle (idle agents and plain shells alike).
+ * Exported so the v4 worktree tree can tag each session with the same
+ * category the v3 stream groups by, from one source of truth. */
+export function classifySessionAttention(
+  session: TerminalSessionMetadata,
+): AttentionGroupKey {
   if (session.agentActivity?.state === "awaiting-input") return "needsYou";
   if (session.unreadSince) return "unread";
   if (session.agentActivity?.state === "working") return "working";
@@ -102,7 +122,7 @@ export function groupSessionsByAttention(
   };
 
   for (const session of sessions) {
-    groups[classify(session)].push(session);
+    groups[classifySessionAttention(session)].push(session);
   }
 
   // Needs you — oldest wait first (askedAt ascending).
@@ -134,4 +154,16 @@ export function groupSessionsByAttention(
   };
 
   return { groups, counts };
+}
+
+/** Order a single worktree tree node's sessions for the v4 tree: needs-you
+ * first (oldest wait first), then unread (most recent first), then working,
+ * then idle (each most-recently-active first) — i.e. `STREAM_GROUPS` order,
+ * each group internally sorted by its existing comparator. Reuses
+ * `groupSessionsByAttention` rather than re-deriving urgency logic. */
+export function orderSessionsForTreeNode(
+  sessions: ReadonlyArray<TerminalSessionMetadata>,
+): TerminalSessionMetadata[] {
+  const { groups } = groupSessionsByAttention(sessions);
+  return STREAM_GROUPS.flatMap((g) => groups[g.key]);
 }

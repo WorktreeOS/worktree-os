@@ -11,6 +11,7 @@ import {
   runStart,
 } from "../apps/cli/commands/start";
 import { DEFAULT_WEB_HOST, DEFAULT_WEB_PORT } from "@worktreeos/core/global-config";
+import { DAEMON_PROTOCOL_VERSION } from "@worktreeos/daemon/daemon-protocol";
 
 describe("parseStartArgs", () => {
   test("no args returns background mode", () => {
@@ -183,5 +184,97 @@ describe("daemon lifecycle commands are worktree-independent", () => {
     } finally {
       process.stderr.write = origWrite;
     }
+  });
+});
+
+describe("runStartBackground surfaces the web UI and first-run onboarding", () => {
+  /** Simulate a healthy, protocol-compatible daemon reachable at `webUrl`. */
+  async function withHealthyDaemon(
+    webUrl: string,
+  ): Promise<{ metadataPath: string; fetch: typeof fetch }> {
+    const home = await mkdtemp(join(tmpdir(), "wos-start-url-"));
+    const metadataPath = resolve(home, "daemon.json");
+    await writeFile(metadataPath, JSON.stringify({ webUrl, pid: 4242 }));
+    const fetchImpl = (async (input: Parameters<typeof fetch>[0]) => {
+      const url = typeof input === "string" ? input : (input as URL | Request).toString();
+      if (url.endsWith("/ui/v1/health")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            version: 1,
+            protocol: DAEMON_PROTOCOL_VERSION,
+            pid: 4242,
+            daemonId: "test",
+            startedAt: new Date(0).toISOString(),
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch;
+    return { metadataPath, fetch: fetchImpl };
+  }
+
+  test("first run: prints the URL and opens the browser to onboarding", async () => {
+    const webUrl = "http://127.0.0.1:4949";
+    const { metadataPath, fetch: fetchImpl } = await withHealthyDaemon(webUrl);
+    const opened: string[] = [];
+    const stdout: string[] = [];
+    const code = await runStartBackground(
+      { metadataPath, fetch: fetchImpl },
+      {
+        fetchSetupRequired: async () => true,
+        launcher: async (url) => {
+          opened.push(url);
+          return { ok: true };
+        },
+        stdoutWrite: (s) => void stdout.push(s),
+        stderrWrite: () => {},
+      },
+    );
+    expect(code).toBe(0);
+    const out = stdout.join("");
+    expect(out).toContain(`Web UI: ${webUrl}`);
+    expect(opened).toEqual([webUrl]);
+    expect(out).toContain("opened the setup page");
+  });
+
+  test("established install: prints the URL but does not open a browser", async () => {
+    const webUrl = "http://127.0.0.1:4949";
+    const { metadataPath, fetch: fetchImpl } = await withHealthyDaemon(webUrl);
+    const opened: string[] = [];
+    const stdout: string[] = [];
+    const code = await runStartBackground(
+      { metadataPath, fetch: fetchImpl },
+      {
+        fetchSetupRequired: async () => false,
+        launcher: async (url) => {
+          opened.push(url);
+          return { ok: true };
+        },
+        stdoutWrite: (s) => void stdout.push(s),
+        stderrWrite: () => {},
+      },
+    );
+    expect(code).toBe(0);
+    expect(stdout.join("")).toContain(`Web UI: ${webUrl}`);
+    expect(opened).toEqual([]);
+  });
+
+  test("first run with no browser: prints the URL to open manually", async () => {
+    const webUrl = "http://127.0.0.1:4949";
+    const { metadataPath, fetch: fetchImpl } = await withHealthyDaemon(webUrl);
+    const stdout: string[] = [];
+    const code = await runStartBackground(
+      { metadataPath, fetch: fetchImpl },
+      {
+        fetchSetupRequired: async () => true,
+        launcher: async () => ({ ok: false, message: "no browser" }),
+        stdoutWrite: (s) => void stdout.push(s),
+        stderrWrite: () => {},
+      },
+    );
+    expect(code).toBe(0);
+    expect(stdout.join("")).toContain(`open ${webUrl} to finish setup`);
   });
 });

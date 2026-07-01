@@ -52,13 +52,68 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  desktop:
+    name: Build desktop ${{ matrix.suffix }}
+    # Electrobun packages only for the host platform (no cross-compile), so each
+    # OS builds its own installer on a native runner — unlike the CLI `build`
+    # job above, which cross-compiles every target from Linux.
+    runs-on: ${{ matrix.os }}
+    # Only macOS is a required target today; Windows and Linux are follow-ups
+    # (see apps/desktop/README.md), so their legs may fail without blocking the
+    # release. A failed experimental leg is treated as success for `publish`.
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      # Let every platform report independently (and upload the artifacts it did
+      # produce) instead of cancelling the others on the first failure.
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            suffix: macos-arm64
+            experimental: false
+          - os: windows-latest
+            suffix: windows-amd64
+            experimental: true
+          - os: ubuntu-latest
+            suffix: linux-amd64
+            experimental: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Builds the web SPA + the bundled `wos` CLI for the host, then packages a
+      # distributable installer via `electrobun build --env=stable` (.dmg on
+      # macOS, self-extracting .exe zip on Windows, .tar.gz installer on Linux)
+      # into apps/desktop/artifacts.
+      - name: Build desktop app
+        run: bun run build:desktop:release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wos-desktop-${{ github.ref_name }}-${{ matrix.suffix }}
+          # Ship the installers; skip the updater manifests (auto-update isn't wired yet).
+          path: |
+            apps/desktop/artifacts/*
+            !apps/desktop/artifacts/*update.json
+          if-no-files-found: error
+          retention-days: 7
+
   # NOTE: the Windows-binary smoke gate is temporarily disabled — the
   # compiled-binary daemon does not become healthy on Windows yet (tracked
   # separately). Validate the binary on demand via the `Windows Binary Smoke`
   # workflow (`workflow_dispatch`) before re-adding this as a publish gate.
   publish:
     name: Publish Release
-    needs: [build]
+    needs: [build, desktop]
     runs-on: ubuntu-latest
     permissions:
       contents: write

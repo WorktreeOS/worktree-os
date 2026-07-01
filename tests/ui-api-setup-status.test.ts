@@ -67,6 +67,25 @@ describe("setup status UI API — local access", () => {
     expect(body.projectCount).toBe(0);
     expect(body.globalConfig.exists).toBe(false);
     expect(body.globalConfig.effective.web.port).toBe(4949);
+    expect(body.firstRunCompleted).toBeNull();
+  });
+
+  test("setupRequired=false when the completion marker is present", async () => {
+    await writeFile(
+      join(tmpHome, "config.json"),
+      JSON.stringify({ firstRunCompleted: "2026-06-01T00:00:00.000Z" }),
+    );
+    daemon = await startDaemon(
+      withDaemonDefaults(tmpHome, {
+        resolveSession: async () => ({}) as any,
+        web: { port: 0 },
+      }),
+    );
+    const res = await fetch(`${daemon.webUrl}/ui/v1/setup/status`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as SetupStatusResponse;
+    expect(body.setupRequired).toBe(false);
+    expect(body.firstRunCompleted).toBe("2026-06-01T00:00:00.000Z");
   });
 
   test("setupRequired=false when config.json exists", async () => {

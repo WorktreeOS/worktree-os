@@ -12,7 +12,8 @@ import {
   type GlobalConfig,
   type TerminalBackendId,
 } from "@worktreeos/core/global-config";
-import { OUTSIDE_TMUX_WARNING } from "./init-logic";
+import { OUTSIDE_TMUX_WARNING } from "@worktreeos/daemon/setup-environment";
+import { defaultLauncher, type WebLauncher } from "./web";
 
 export interface StartCommandOptions {
   metadataPath?: string;
@@ -79,21 +80,63 @@ export function parseStartArgs(args: string[]): ParsedStartArgs {
   return { mode: "unknown" };
 }
 
+export interface StartBackgroundDeps {
+  /** Browser launcher used to open onboarding on first run (tests). */
+  launcher?: WebLauncher;
+  /**
+   * Query the daemon's first-run status. Returns `null` when unreachable so the
+   * URL is still printed without opening a browser (tests).
+   */
+  fetchSetupRequired?: (baseUrl: string) => Promise<boolean | null>;
+  stdoutWrite?: (text: string) => void;
+  stderrWrite?: (text: string) => void;
+}
+
+/** Read `GET /ui/v1/setup/status` and report whether onboarding is pending. */
+async function fetchSetupRequired(baseUrl: string): Promise<boolean | null> {
+  try {
+    const res = await fetch(new URL("/ui/v1/setup/status", baseUrl));
+    if (!res.ok) return null;
+    const body = (await res.json()) as { setupRequired?: unknown };
+    return body.setupRequired === true;
+  } catch {
+    return null;
+  }
+}
+
 export async function runStartBackground(
   bootstrapOpts?: DaemonBootstrapOptions,
+  deps: StartBackgroundDeps = {},
 ): Promise<number> {
+  const stdoutWrite = deps.stdoutWrite ?? ((s: string) => void process.stdout.write(s));
+  const stderrWrite = deps.stderrWrite ?? ((s: string) => void process.stderr.write(s));
   const bootstrap = createDaemonBootstrap(bootstrapOpts);
   try {
     const result = await bootstrap.start();
-    if (result.kind === "already-running") {
-      process.stderr.write("wos: daemon is already running\n");
-    } else {
-      process.stderr.write("wos: daemon started\n");
+    const url = result.daemon.baseUrl;
+    stderrWrite(
+      result.kind === "already-running"
+        ? "wos: daemon is already running\n"
+        : "wos: daemon started\n",
+    );
+    stdoutWrite(`Web UI: ${url}\n`);
+
+    // First run: guide the user into the web onboarding checklist. Opening the
+    // browser is best-effort — always print the URL so it is reachable anyway.
+    const setupRequired = await (deps.fetchSetupRequired ?? fetchSetupRequired)(url);
+    if (setupRequired) {
+      const launcher = deps.launcher ?? defaultLauncher(process.platform);
+      const opened = await launcher(url);
+      stdoutWrite(
+        opened.ok
+          ? "First run — opened the setup page in your browser.\n"
+          : `First run — open ${url} to finish setup.\n`,
+      );
     }
     return 0;
   } catch (e) {
     if (e instanceof DaemonStartupError) {
-      process.stderr.write(
+      stderrWrite(
         `wos start failed: ${e.message}\nTry running 'wos start --foreground' manually to inspect.\n`,
       );
       return 1;

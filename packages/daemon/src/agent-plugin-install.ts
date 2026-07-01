@@ -42,26 +42,56 @@ import { packagedPluginsDir } from "./packaged-layout";
 export type PluginAgent = "claude" | "opencode" | "codex" | "pi";
 
 /**
+ * Resolve a bundled plugin package directory (`plugin-claude`, `plugin-codex`,
+ * …), reconciling three layouts:
+ *   - `WOS_PLUGIN_ROOT_DIR` override — when the daemon runs from a bundle whose
+ *     module graph is flattened (e.g. the desktop app), `import.meta.dir` has no
+ *     sibling package dirs and external agent runtimes cannot read Bun's
+ *     `/$bunfs/`; the host points resolution at on-disk resources copied as
+ *     `plugin-<agent>` dirs.
+ *   - published npm layout — `pluginsDir` (detected via `packagedPluginsDir()`,
+ *     null in a source checkout) holds the plugins as `<pluginsDir>/<agent>`.
+ *   - source checkout — the in-repo `packages/plugin-<agent>` package.
+ */
+function resolvePluginPkgDir(
+  pkg: string,
+  pluginsDir: string | null,
+  env: NodeJS.ProcessEnv,
+): string {
+  const override = env.WOS_PLUGIN_ROOT_DIR;
+  if (override && override.length > 0) return resolve(override, pkg);
+  if (pluginsDir) return resolve(pluginsDir, pkg.replace(/^plugin-/, ""));
+  return resolve(import.meta.dir, "../..", pkg);
+}
+
+/**
+ * Resolve a bundled plugin package directory by name (`plugin-claude`, …).
+ * Honors the `WOS_PLUGIN_ROOT_DIR` override for flattened bundles, then the
+ * detected packaged layout, then the source tree.
+ */
+export function pluginPackageRoot(
+  pkg: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return resolvePluginPkgDir(pkg, packagedPluginsDir(), env);
+}
+
+/**
  * Root of the bundled Claude Code plugin (`.claude-plugin/plugin.json` + hooks
- * + src). Under the published npm layout the plugin files are laid down as real
- * files at `<pkgRoot>/plugins/claude`; in a source checkout they resolve to the
- * in-repo `plugin-claude` package. `pluginsDir` defaults to the detected
- * packaged layout (null in a source checkout); tests pass an assembled
- * `dist/npm/plugins` to exercise the packaged branch.
+ * + src). `pluginsDir` defaults to the detected packaged layout (null in a
+ * source checkout); tests pass an assembled `dist/npm/plugins`.
  */
 export function claudePluginRoot(
   pluginsDir: string | null = packagedPluginsDir(),
 ): string {
-  if (pluginsDir) return resolve(pluginsDir, "claude");
-  return resolve(import.meta.dir, "../../plugin-claude");
+  return resolvePluginPkgDir("plugin-claude", pluginsDir, process.env);
 }
 
 /** Root of the bundled Codex plugin (`.codex-plugin/plugin.json` + hooks). */
 export function codexPluginRoot(
   pluginsDir: string | null = packagedPluginsDir(),
 ): string {
-  if (pluginsDir) return resolve(pluginsDir, "codex");
-  return resolve(import.meta.dir, "../../plugin-codex");
+  return resolvePluginPkgDir("plugin-codex", pluginsDir, process.env);
 }
 
 /**
@@ -73,8 +103,7 @@ export function codexPluginRoot(
 export function opencodePluginEntry(
   pluginsDir: string | null = packagedPluginsDir(),
 ): string {
-  if (pluginsDir) return `file://${resolve(pluginsDir, "opencode/src/index.ts")}`;
-  return `file://${resolve(import.meta.dir, "../../plugin-opencode/src/index.ts")}`;
+  return `file://${resolve(resolvePluginPkgDir("plugin-opencode", pluginsDir, process.env), "src/index.ts")}`;
 }
 
 /**
@@ -102,13 +131,12 @@ export function wosPiExtensionPath(env: NodeJS.ProcessEnv = process.env): string
  * Absolute path to the bundled pi extension source (the shim re-exports it).
  * Under the published npm layout this is the self-contained source shipped at
  * `<pkgRoot>/plugins/pi/src/index.ts`; in a source checkout it is the in-repo
- * `plugin-pi` source.
+ * `plugin-pi` source. Honors `WOS_PLUGIN_ROOT_DIR` for flattened bundles.
  */
 export function piPluginEntry(
   pluginsDir: string | null = packagedPluginsDir(),
 ): string {
-  if (pluginsDir) return resolve(pluginsDir, "pi/src/index.ts");
-  return resolve(import.meta.dir, "../../plugin-pi/src/index.ts");
+  return resolve(resolvePluginPkgDir("plugin-pi", pluginsDir, process.env), "src/index.ts");
 }
 
 /**
