@@ -1,0 +1,17 @@
+{
+  "name": "@worktreeos/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "module": "src/main.ts",
+  "scripts": {
+    "dev": "electrobun dev",
+    "build": "electrobun build",
+    "build:release": "electrobun build --env=stable"
+  },
+  "dependencies": {
+    "@worktreeos/core": "workspace:*",
+    "@worktreeos/daemon": "workspace:*",
+    "electrobun": "^1.18.1"
+  }
+}

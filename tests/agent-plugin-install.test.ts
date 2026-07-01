@@ -17,6 +17,7 @@ import {
   opencodeConfigPath,
   opencodePluginEntry,
   piPluginEntry,
+  pluginPackageRoot,
   reinstallClaudePlugin,
   removeLegacyClaudeHooks,
   resetAgentPluginInstallCache,
@@ -434,5 +435,23 @@ describe("pi extension install/detection", () => {
     expect(injectPiExtension(env)).toBe(true);
     expect(readFileSync(path, "utf8")).toContain(piPluginEntry());
     expect(isAgentPluginInstalled("pi", env)).toBe(true);
+  });
+});
+
+describe("pluginPackageRoot WOS_PLUGIN_ROOT_DIR override", () => {
+  test("resolves under the override when set (desktop bundle)", () => {
+    const root = pluginPackageRoot("plugin-claude", {
+      WOS_PLUGIN_ROOT_DIR: "/Applications/WorktreeOS.app/Contents/Resources/plugins",
+    });
+    expect(root).toBe(
+      "/Applications/WorktreeOS.app/Contents/Resources/plugins/plugin-claude",
+    );
+  });
+
+  test("falls back to the source-relative layout when unset", () => {
+    const a = pluginPackageRoot("plugin-codex", {});
+    const b = pluginPackageRoot("plugin-codex", { WOS_PLUGIN_ROOT_DIR: "" });
+    expect(a).toBe(b);
+    expect(a.endsWith("plugin-codex")).toBe(true);
   });
 });

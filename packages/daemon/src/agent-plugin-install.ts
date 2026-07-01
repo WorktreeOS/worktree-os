@@ -40,14 +40,32 @@ import {
 
 export type PluginAgent = "claude" | "opencode" | "codex" | "pi";
 
+/**
+ * Resolve a bundled plugin package directory (`plugin-claude`, `plugin-codex`,
+ * …). Normally these live beside the daemon source (`packages/<pkg>`). When the
+ * daemon runs from a bundle whose module graph is flattened (e.g. the desktop
+ * app), `import.meta.dir` has no sibling package dirs, so external agent
+ * runtimes — which read these files directly and cannot see Bun's `/$bunfs/` —
+ * would fail. `WOS_PLUGIN_ROOT_DIR` overrides the base directory so a host can
+ * point resolution at on-disk plugin resources. Unset → unchanged behavior.
+ */
+export function pluginPackageRoot(
+  pkg: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const override = env.WOS_PLUGIN_ROOT_DIR;
+  if (override && override.length > 0) return resolve(override, pkg);
+  return resolve(import.meta.dir, "../..", pkg);
+}
+
 /** Root of the bundled Claude Code plugin (plugin.json + hooks + scripts). */
 export function claudePluginRoot(): string {
-  return resolve(import.meta.dir, "../../plugin-claude");
+  return pluginPackageRoot("plugin-claude");
 }
 
 /** Root of the bundled Codex plugin (`.codex-plugin/plugin.json` + hooks). */
 export function codexPluginRoot(): string {
-  return resolve(import.meta.dir, "../../plugin-codex");
+  return pluginPackageRoot("plugin-codex");
 }
 
 /**
@@ -56,7 +74,7 @@ export function codexPluginRoot(): string {
  * layout-relative resolution mirrors `claudePluginRoot()`.
  */
 export function opencodePluginEntry(): string {
-  return `file://${resolve(import.meta.dir, "../../plugin-opencode/src/index.ts")}`;
+  return `file://${resolve(pluginPackageRoot("plugin-opencode"), "src/index.ts")}`;
 }
 
 /**
@@ -82,7 +100,7 @@ export function wosPiExtensionPath(env: NodeJS.ProcessEnv = process.env): string
 
 /** Absolute path to the bundled pi extension source (the shim re-exports it). */
 export function piPluginEntry(): string {
-  return resolve(import.meta.dir, "../../plugin-pi/src/index.ts");
+  return resolve(pluginPackageRoot("plugin-pi"), "src/index.ts");
 }
 
 /**
