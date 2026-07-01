@@ -11,6 +11,8 @@ per-worktree state under `<wos-home>/sessions/<session-name>`.
 
 | Command | What it does | Worktree required |
 | --- | --- | --- |
+| `wos` (bare) | Start the local daemon (≡ `wos start`) and print the web UI URL. First-run onboarding happens in the web UI. | No |
+| `wos init` | Non-interactive setup for CI/automation: apply defaults + `--host`/`--port`/`--backend`/`--install-tmux`/`--install-plugins` and write the global config without prompting. | No |
 | `wos up [services] [--target <name>] [--force] [--arg K=V] [--no-tunnel]` | Deploy the current worktree (foreground stream). | Yes |
 | `wos up -d [--force] …` | Submit deployment to the daemon and return immediately. | Yes |
 | `wos down` | Stop and remove WorktreeOS containers for the current worktree. | Yes |

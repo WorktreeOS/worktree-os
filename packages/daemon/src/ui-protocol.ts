@@ -1032,14 +1032,70 @@ export interface UiErrorResponse {
  */
 export interface SetupStatusResponse {
   /**
-   * `true` when the daemon has no saved global config AND no registered
-   * projects. Otherwise `false`.
+   * `true` when first-run onboarding has not been completed. Derived from the
+   * `firstRunCompleted` marker with back-compat: an existing `config.json` or
+   * any registered project counts as already onboarded.
    */
   setupRequired: boolean;
   /** Snapshot of `<wos-home>/config.json` and effective defaults. */
   globalConfig: import("@worktreeos/core/global-config").GlobalConfigManagementSnapshot;
   /** Total number of records in the project registry. */
   projectCount: number;
+  /** First-run completion marker timestamp, or `null` when not yet completed. */
+  firstRunCompleted: string | null;
+}
+
+/**
+ * Environment probe for the first-run onboarding checklist. Local-only; returns
+ * Docker / Docker Compose v2 availability and the tmux/psmux availability plus
+ * (when unavailable) the detected host package manager and install command hint.
+ */
+export interface SetupEnvironmentResponse {
+  docker: { installed: boolean };
+  dockerCompose: { installed: boolean };
+  tmux: {
+    available: boolean;
+    /** Diagnostic reason when unavailable. */
+    reason?: string;
+    /** The probed multiplexer binary (e.g. `tmux` / `psmux`). */
+    binary: string;
+    /** Host platform (`process.platform`). */
+    platform: string;
+    /**
+     * Detected host package manager + ready-to-run install command, or `null`
+     * when tmux is available or no supported manager was found.
+     */
+    packageManager:
+      | { manager: string; command: string; requiresElevation: boolean }
+      | null;
+  };
+}
+
+/**
+ * Result of `POST /ui/v1/setup/install-tmux`. `status` distinguishes a
+ * successful server-side install (`ok`), a sudo package manager that must be run
+ * by the user (`manual-required`, carrying the exact `command`), and a failure
+ * (`error`, carrying a `message`).
+ */
+export interface SetupInstallTmuxResponse {
+  status: "ok" | "manual-required" | "error";
+  /** Whether tmux/psmux is available after the attempt. */
+  available: boolean;
+  /** The effective terminal backend after the attempt. */
+  terminalBackend: "default" | "tmux";
+  /** Detected package manager id, when any. */
+  manager?: string;
+  /** The exact install command (guidance / audit). */
+  command?: string;
+  /** Human-readable detail for guidance / failure. */
+  message?: string;
+}
+
+/** Result of `POST /ui/v1/setup/complete` — stamps the first-run marker. */
+export interface SetupCompleteResponse {
+  ok: true;
+  /** The persisted completion marker timestamp. */
+  firstRunCompleted: string;
 }
 
 /**

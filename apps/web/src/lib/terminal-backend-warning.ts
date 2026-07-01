@@ -1,9 +1,9 @@
 /**
  * Backend → stability-warning decision for the web terminal surface.
  *
- * Mirrors the CLI's `OUTSIDE_TMUX_WARNING` literal (defined in
- * `apps/cli/commands/init-logic.ts`); the two are kept byte-identical and
- * guarded by tests on both sides so the copy can never drift. The frontend
+ * Mirrors the shared `OUTSIDE_TMUX_WARNING` literal (defined in
+ * `packages/daemon/src/setup-environment.ts`); the two are kept byte-identical
+ * and guarded by tests on both sides so the copy can never drift. The frontend
  * cannot import across the app/bundle boundary, so the constant is duplicated
  * here the same way other `apps/web/src/lib` modules mirror `@worktreeos/core`.
  */

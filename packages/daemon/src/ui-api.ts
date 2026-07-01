@@ -22,11 +22,14 @@ import {
   buildManagementSnapshot,
   diffChangedPaths,
   effectiveHealthcheckDefaults,
+  firstRunSetupRequired,
   loadGlobalConfig,
+  markFirstRunCompleted,
   resolveCommitMessageProvider,
   restartRequiredForSave,
   saveGlobalConfig,
   type GlobalConfig,
+  type GlobalConfigDraft,
   type GlobalTunnelWebUiConfig,
 } from "@worktreeos/core/global-config";
 import { loadRepoConfig } from "@worktreeos/core/repo-config";
@@ -51,7 +54,18 @@ import {
   TerminalSessionManagerError,
   type TerminalSessionManager,
 } from "./terminal-layer/manager";
-import { detectTerminalBackendAvailability } from "./terminal-layer/tmux-backend";
+import {
+  detectTerminalBackendAvailability,
+  type TerminalBackendAvailabilityDetail,
+} from "./terminal-layer/tmux-backend";
+import {
+  detectPackageManager as detectHostPackageManager,
+  managerRequiresElevation,
+  probeDockerEnvironment,
+  runInstallCommand,
+  type DockerEnvironmentProbe,
+  type PackageManagerInstall,
+} from "./setup-environment";
 import {
   handleTerminalCreate as handleTerminalLayerCreate,
   handleTerminalGet as handleTerminalLayerGet,
@@ -230,6 +244,9 @@ import {
   type DirectorySuggestion,
   type ProjectConfigStatus,
   type SetupStatusResponse,
+  type SetupEnvironmentResponse,
+  type SetupInstallTmuxResponse,
+  type SetupCompleteResponse,
   type WorktreeFileContentResponse,
   type WorktreeFileEntry,
   type WorktreeFileErrorBody,
@@ -493,6 +510,23 @@ export interface UiApiDependencies {
   commitMessageConfigLoader?: () => Promise<GlobalConfig>;
   /** Generate a commit message from the staged diff (tests). */
   commitMessageGenerator?: typeof generateCommitMessage;
+  /**
+   * Injectable first-run setup-environment probes/runners for the
+   * `/ui/v1/setup/*` onboarding endpoints (tests). Each field defaults to the
+   * real host probe so production wiring needs none of them.
+   */
+  setupEnvironment?: {
+    /** Probe Docker + Docker Compose v2 presence. */
+    probeDocker?: () => Promise<DockerEnvironmentProbe>;
+    /** Probe tmux/psmux availability + resolved binary/platform. */
+    detectTmux?: () => TerminalBackendAvailabilityDetail;
+    /** Detect the host package manager + install command hint. */
+    detectPackageManager?: () => PackageManagerInstall | null;
+    /** Run a package-manager install command server-side. */
+    runInstall?: (command: string, platform: NodeJS.Platform) => Promise<boolean>;
+    /** Override the host platform. Defaults to `process.platform`. */
+    platform?: NodeJS.Platform;
+  };
 }
 
 /**
@@ -532,6 +566,20 @@ export function createUiApiHandler(
   const stopScheduler = deps.stopScheduler;
   const daemonId = deps.daemonId ?? crypto.randomUUID();
   const webInfo = deps.webInfo ?? (() => undefined);
+  // Resolved first-run setup-environment probes/runners for the `/setup/*`
+  // onboarding endpoints. Each defaults to the real host probe.
+  const setupPlatform = deps.setupEnvironment?.platform ?? process.platform;
+  const setupEnv = {
+    probeDocker: deps.setupEnvironment?.probeDocker ?? probeDockerEnvironment,
+    detectTmux:
+      deps.setupEnvironment?.detectTmux ??
+      (() => detectTerminalBackendAvailability()),
+    detectPackageManager:
+      deps.setupEnvironment?.detectPackageManager ??
+      (() => detectHostPackageManager(setupPlatform, (n) => Bun.which(n))),
+    runInstall: deps.setupEnvironment?.runInstall ?? runInstallCommand,
+    platform: setupPlatform,
+  };
   const editorCommandLoader =
     deps.editorCommandLoader ??
     (async () => (await loadGlobalConfig()).editorCommand);
@@ -659,6 +707,39 @@ export function createUiApiHandler(
           );
         }
         return handleSetupStatus();
+      }
+
+      if (sub === "/setup/environment" && req.method === "GET") {
+        if (auth.isPublic) {
+          return errorResponse(
+            403,
+            "forbidden",
+            "setup environment is not available on public/remote daemon web access",
+          );
+        }
+        return handleSetupEnvironment();
+      }
+
+      if (sub === "/setup/install-tmux" && req.method === "POST") {
+        if (auth.isPublic) {
+          return errorResponse(
+            403,
+            "forbidden",
+            "tmux install is not available on public/remote daemon web access",
+          );
+        }
+        return handleInstallTmux();
+      }
+
+      if (sub === "/setup/complete" && req.method === "POST") {
+        if (auth.isPublic) {
+          return errorResponse(
+            403,
+            "forbidden",
+            "setup completion is not available on public/remote daemon web access",
+          );
+        }
+        return handleSetupComplete();
       }
 
       if (sub === "/settings/config") {
@@ -2045,13 +2126,144 @@ export function createUiApiHandler(
   async function handleSetupStatus(): Promise<Response> {
     const snapshot = await buildManagementSnapshot();
     const projects = await loadProjects({ filePath: projectsFilePath });
-    const setupRequired = !snapshot.exists && projects.length === 0;
+    const marker = snapshot.effective.firstRunCompleted ?? null;
+    const setupRequired = firstRunSetupRequired({
+      markerPresent: marker !== null,
+      configExists: snapshot.exists,
+      projectCount: projects.length,
+    });
     const payload: SetupStatusResponse = {
       setupRequired,
       globalConfig: snapshot,
       projectCount: projects.length,
+      firstRunCompleted: marker,
     };
     return jsonResponse(200, payload);
+  }
+
+  /**
+   * Onboarding environment probe: Docker / Docker Compose v2 presence and
+   * tmux/psmux availability plus (when unavailable) the detected host package
+   * manager and install command hint. Local-only.
+   */
+  async function handleSetupEnvironment(): Promise<Response> {
+    const docker = await setupEnv.probeDocker();
+    const tmux = setupEnv.detectTmux();
+    let packageManager: SetupEnvironmentResponse["tmux"]["packageManager"] = null;
+    if (!tmux.available) {
+      const pkg = setupEnv.detectPackageManager();
+      if (pkg) {
+        packageManager = {
+          manager: pkg.manager,
+          command: pkg.command,
+          requiresElevation: managerRequiresElevation(pkg.manager),
+        };
+      }
+    }
+    const payload: SetupEnvironmentResponse = {
+      docker: { installed: docker.dockerInstalled },
+      dockerCompose: { installed: docker.dockerComposeV2 },
+      tmux: {
+        available: tmux.available,
+        ...(tmux.reason ? { reason: tmux.reason } : {}),
+        binary: tmux.binary,
+        platform: tmux.platform,
+        packageManager,
+      },
+    };
+    return jsonResponse(200, payload);
+  }
+
+  /** Persist `terminalBackend = tmux`, merging onto the existing raw draft. */
+  async function persistTmuxBackend(): Promise<void> {
+    const snapshot = await buildManagementSnapshot();
+    const base: GlobalConfigDraft = snapshot.raw ?? {};
+    await saveGlobalConfig({ ...base, terminalBackend: "tmux" });
+  }
+
+  /**
+   * Attempt to install tmux/psmux. Runs the detected install command
+   * server-side only for no-sudo package managers (brew/winget/scoop); sudo
+   * managers (apt/dnf/pacman) return a typed `manual-required` result carrying
+   * the command. On success it re-probes and persists `terminalBackend = tmux`.
+   * Local-only. Failures are typed results, never thrown.
+   */
+  async function handleInstallTmux(): Promise<Response> {
+    const respond = (payload: SetupInstallTmuxResponse) =>
+      jsonResponse(200, payload);
+
+    const before = setupEnv.detectTmux();
+    if (before.available) {
+      // Already installed — make sure the backend is switched and report ok.
+      await persistTmuxBackend();
+      return respond({
+        status: "ok",
+        available: true,
+        terminalBackend: "tmux",
+        message: "tmux/psmux is already available.",
+      });
+    }
+
+    const pkg = setupEnv.detectPackageManager();
+    if (!pkg) {
+      return respond({
+        status: "error",
+        available: false,
+        terminalBackend: (await loadGlobalConfig()).terminalBackend,
+        message:
+          "No supported package manager (brew/apt/dnf/pacman/winget/scoop) was found to install tmux/psmux.",
+      });
+    }
+
+    if (managerRequiresElevation(pkg.manager)) {
+      return respond({
+        status: "manual-required",
+        available: false,
+        terminalBackend: (await loadGlobalConfig()).terminalBackend,
+        manager: pkg.manager,
+        command: pkg.command,
+        message: `Run this command in a terminal to install tmux, then refresh: ${pkg.command}`,
+      });
+    }
+
+    // No-sudo manager: run the install server-side, then re-probe.
+    const ran = await setupEnv.runInstall(pkg.command, setupEnv.platform);
+    const after = setupEnv.detectTmux();
+    if (ran && after.available) {
+      await persistTmuxBackend();
+      return respond({
+        status: "ok",
+        available: true,
+        terminalBackend: "tmux",
+        manager: pkg.manager,
+        command: pkg.command,
+      });
+    }
+    return respond({
+      status: "error",
+      available: after.available,
+      terminalBackend: (await loadGlobalConfig()).terminalBackend,
+      manager: pkg.manager,
+      command: pkg.command,
+      message: `Ran \`${pkg.command}\` but tmux/psmux is still unavailable${after.reason ? ` (${after.reason})` : ""}.`,
+    });
+  }
+
+  /** Stamp the first-run completion marker. Local-only. */
+  async function handleSetupComplete(): Promise<Response> {
+    const result = await markFirstRunCompleted();
+    if (!result.ok) {
+      return errorResponse(
+        500,
+        "save-failed",
+        result.errors[0]?.message ?? "could not persist the completion marker",
+      );
+    }
+    const marker = result.snapshot.effective.firstRunCompleted;
+    return jsonResponse(200, {
+      ok: true,
+      firstRunCompleted: marker ?? new Date().toISOString(),
+    } satisfies SetupCompleteResponse);
   }
 
   /**

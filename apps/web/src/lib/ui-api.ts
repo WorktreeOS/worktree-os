@@ -1069,6 +1069,39 @@ export interface SetupStatusResponse {
   setupRequired: boolean;
   globalConfig: SettingsConfigSnapshot;
   projectCount: number;
+  /** First-run completion marker timestamp, or `null` when not yet completed. */
+  firstRunCompleted: string | null;
+}
+
+/** Environment probe for the onboarding checklist (`GET /ui/v1/setup/environment`). */
+export interface SetupEnvironmentResponse {
+  docker: { installed: boolean };
+  dockerCompose: { installed: boolean };
+  tmux: {
+    available: boolean;
+    reason?: string;
+    binary: string;
+    platform: string;
+    packageManager:
+      | { manager: string; command: string; requiresElevation: boolean }
+      | null;
+  };
+}
+
+/** Result of `POST /ui/v1/setup/install-tmux`. */
+export interface SetupInstallTmuxResponse {
+  status: "ok" | "manual-required" | "error";
+  available: boolean;
+  terminalBackend: "default" | "tmux";
+  manager?: string;
+  command?: string;
+  message?: string;
+}
+
+/** Result of `POST /ui/v1/setup/complete`. */
+export interface SetupCompleteResponse {
+  ok: true;
+  firstRunCompleted: string;
 }
 
 /** Response body returned by `POST /ui/v1/daemon/restart`. */
@@ -1625,6 +1658,52 @@ export function createUiApi(
     },
     async getSetupStatus(): Promise<SetupStatusResponse> {
       const res = await apiFetch(buildUrl(baseUrl, "/ui/v1/setup/status"));
+      if (res.status === 401) throw new UiUnauthorizedError();
+      if (res.status === 403) {
+        let body: unknown;
+        try {
+          body = await res.json();
+        } catch {
+          body = undefined;
+        }
+        throw new UiForbiddenError(body);
+      }
+      return jsonOk(res);
+    },
+    async getSetupEnvironment(): Promise<SetupEnvironmentResponse> {
+      const res = await apiFetch(buildUrl(baseUrl, "/ui/v1/setup/environment"));
+      if (res.status === 401) throw new UiUnauthorizedError();
+      if (res.status === 403) {
+        let body: unknown;
+        try {
+          body = await res.json();
+        } catch {
+          body = undefined;
+        }
+        throw new UiForbiddenError(body);
+      }
+      return jsonOk(res);
+    },
+    async installTmux(): Promise<SetupInstallTmuxResponse> {
+      const res = await apiFetch(buildUrl(baseUrl, "/ui/v1/setup/install-tmux"), {
+        method: "POST",
+      });
+      if (res.status === 401) throw new UiUnauthorizedError();
+      if (res.status === 403) {
+        let body: unknown;
+        try {
+          body = await res.json();
+        } catch {
+          body = undefined;
+        }
+        throw new UiForbiddenError(body);
+      }
+      return jsonOk(res);
+    },
+    async markSetupComplete(): Promise<SetupCompleteResponse> {
+      const res = await apiFetch(buildUrl(baseUrl, "/ui/v1/setup/complete"), {
+        method: "POST",
+      });
       if (res.status === 401) throw new UiUnauthorizedError();
       if (res.status === 403) {
         let body: unknown;

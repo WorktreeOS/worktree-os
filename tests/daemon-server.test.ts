@@ -98,33 +98,43 @@ describe("daemon server: HTTP control plane", () => {
     expect(typeof metadata.startedAt).toBe("string");
   });
 
-  test("daemon startup fails with a host/port diagnostic when the listener cannot bind", async () => {
+  test("port-busy startup selects the next free port and records it in metadata", async () => {
     daemon = await startDaemon(
       withDaemonDefaults(tmpHome, {
         resolveSession: async () => fakeContext(),
       }),
     );
-    const url = new URL(daemon.webUrl);
-    const occupiedPort = Number(url.port);
-    await expect(
-      startDaemon(
-        withDaemonDefaults(tmpHome, {
-          resolveSession: async () => fakeContext(),
-          web: { port: occupiedPort },
-          // Assert the genuine bind failure without waiting out the restart
-          // EADDRINUSE retry window.
-          bindRetryMs: 0,
-        }),
-      ),
-    ).rejects.toThrow(new RegExp(`127\\.0\\.0\\.1:${occupiedPort}`));
-    // No metadata is overwritten by the failed startup: it still names the
-    // healthy daemon's pid.
-    const metadata = (await Bun.file(
-      resolve(tmpHome, "daemon.json"),
-    ).json()) as DaemonMetadata;
-    expect(metadata.pid).toBe(process.pid);
-    expect(metadata.webUrl).toBe(daemon.webUrl);
+    const occupiedPort = Number(new URL(daemon.webUrl).port);
+    // A second daemon asked to bind the occupied port must NOT fail; it binds
+    // the next free port instead. Separate metadata path so it does not clobber
+    // the first daemon's discovery file.
+    const secondMetadataPath = resolve(tmpHome, "daemon-second.json");
+    const second = await startDaemon(
+      withDaemonDefaults(tmpHome, {
+        resolveSession: async () => fakeContext(),
+        web: { port: occupiedPort },
+        metadataPath: secondMetadataPath,
+        // Skip the restart EADDRINUSE retry window so the fallback is exercised
+        // immediately.
+        bindRetryMs: 0,
+      }),
+    );
+    try {
+      const boundPort = Number(new URL(second.webUrl).port);
+      expect(boundPort).not.toBe(occupiedPort);
+      expect(boundPort).toBeGreaterThan(occupiedPort);
+      // The effective (selected) port is reflected in the daemon metadata.
+      const metadata = (await Bun.file(secondMetadataPath).json()) as DaemonMetadata;
+      expect(metadata.webPort).toBe(boundPort);
+      expect(metadata.webUrl).toContain(String(boundPort));
+      // The listener answers on its selected port.
+      const res = await fetch(`${second.webUrl}/ui/v1/health`);
+      expect(res.status).toBe(200);
+    } finally {
+      await second.stop();
+    }
   });
+
 
   test("wildcard bind reports 127.0.0.1 webUrl while keeping the bind host", async () => {
     daemon = await startDaemon(

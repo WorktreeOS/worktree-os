@@ -1,112 +1,18 @@
 /**
- * Pure, side-effect-free decision logic for the `wos init` setup wizard.
+ * Pure, side-effect-free decision logic for the non-interactive `wos init`.
  *
- * Everything in this module is a deterministic function of its inputs (the host
- * platform, an injected `which` lookup, parsed argv, probe results) so the
- * branching the wizard runner wires to `readline` / `Bun.which` / child-process
- * installs can be unit-tested in isolation (`bun test`), per the repo's
- * test-through-pure-functions norm. The wizard runner in `init.ts` is the only
- * place that performs I/O.
+ * Everything in this module is a deterministic function of its inputs (parsed
+ * argv, probe results) so the branching the init runner wires to `Bun.which` /
+ * child-process installs can be unit-tested in isolation (`bun test`), per the
+ * repo's test-through-pure-functions norm. The runner in `init.ts` is the only
+ * place that performs I/O. Cross-package setup primitives (package-manager
+ * detection, free-port selection, the tmux warning) live in
+ * `@worktreeos/daemon/setup-environment` so the CLI and the daemon web
+ * onboarding endpoints share one implementation.
  */
 
 import type { TerminalBackendId } from "@worktreeos/core/global-config";
-
-/**
- * The single literal stability warning emitted whenever the effective terminal
- * backend resolves to `default`. Referenced by the wizard (on declining tmux),
- * `wos start`, and — as a synchronized copy — the web terminal surface. Tests
- * assert the exact copy on every surface to guard against drift.
- */
-export const OUTSIDE_TMUX_WARNING =
-  "Running outside tmux/psmux — terminal sessions may be unstable.";
-
-/**
- * Return the first free port at or above `start`, probing each candidate with
- * the injected `isFree` predicate. Scans up to the maximum valid port (65535);
- * when nothing in range is free it falls back to `start` (the daemon's own bind
- * remains the source of truth — this is advisory UX only).
- */
-export function selectNextFreePort(
-  start: number,
-  isFree: (port: number) => boolean,
-): number {
-  for (let port = start; port <= 65535; port++) {
-    if (isFree(port)) return port;
-  }
-  return start;
-}
-
-/** Supported host package managers for the insistent tmux/psmux install offer. */
-export type PackageManagerId =
-  | "brew"
-  | "apt"
-  | "dnf"
-  | "pacman"
-  | "winget"
-  | "scoop";
-
-export interface PackageManagerInstall {
-  /** The detected package manager. */
-  manager: PackageManagerId;
-  /** Ready-to-run shell command that installs the multiplexer. */
-  command: string;
-}
-
-/**
- * Per-manager probe binary and the install command the wizard offers to run.
- * POSIX managers install `tmux`; the Windows managers install `psmux` (the
- * tmux-compatible ConPTY multiplexer the tmux backend probes for on win32).
- */
-const PACKAGE_MANAGERS: Record<
-  PackageManagerId,
-  { bin: string; command: string }
-> = {
-  brew: { bin: "brew", command: "brew install tmux" },
-  apt: { bin: "apt-get", command: "sudo apt-get install -y tmux" },
-  dnf: { bin: "dnf", command: "sudo dnf install -y tmux" },
-  pacman: { bin: "pacman", command: "sudo pacman -S --noconfirm tmux" },
-  winget: { bin: "winget", command: "winget install psmux" },
-  scoop: { bin: "scoop", command: "scoop install psmux" },
-};
-
-/** Platform-ordered preference list of package managers to probe. */
-function managerPreference(platform: NodeJS.Platform): PackageManagerId[] {
-  if (platform === "win32") return ["winget", "scoop"];
-  if (platform === "darwin") return ["brew"];
-  // Linux and other POSIX hosts: distro managers first, then linuxbrew.
-  return ["apt", "dnf", "pacman", "brew"];
-}
-
-/**
- * Detect the preferred host package manager and the matching tmux/psmux install
- * command, probing each candidate binary via the injected `which`. Returns
- * `null` when no supported manager is found.
- */
-export function detectPackageManager(
-  platform: NodeJS.Platform,
-  which: (name: string) => string | null,
-): PackageManagerInstall | null {
-  for (const manager of managerPreference(platform)) {
-    const entry = PACKAGE_MANAGERS[manager];
-    if (which(entry.bin)) {
-      return { manager, command: entry.command };
-    }
-  }
-  return null;
-}
-
-/** Commands exempt from the global-config gate: the wizard entrypoints + help. */
-const CONFIG_EXEMPT_COMMANDS = new Set(["init", "help", "--help", "-h"]);
-
-/**
- * Gate decision: whether `command` requires the global config file to exist.
- * Returns `false` only for the wizard entrypoints (bare/no command, `init`) and
- * help (`help` / `-h` / `--help`); every other command requires a config.
- */
-export function requiresConfig(command: string | undefined): boolean {
-  if (command === undefined) return false;
-  return !CONFIG_EXEMPT_COMMANDS.has(command);
-}
+import type { PackageManagerInstall } from "@worktreeos/daemon/setup-environment";
 
 export interface ParsedInitArgs {
   host?: string;
@@ -238,7 +144,7 @@ export function resolveBackendDecision(
 
 /**
  * Whether `host` is a loopback address (so the non-loopback LAN-exposure
- * confirmation can be skipped). Matches `localhost`, the IPv4 loopback block
+ * warning can be skipped). Matches `localhost`, the IPv4 loopback block
  * (`127.0.0.0/8`), and the IPv6 loopback (`::1`). Everything else — including
  * `0.0.0.0` (all interfaces) — is treated as non-loopback.
  */

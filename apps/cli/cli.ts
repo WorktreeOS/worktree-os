@@ -1,6 +1,4 @@
 import { resolve } from "node:path";
-import { existsSync } from "node:fs";
-import { globalConfigPath } from "@worktreeos/core/global-config";
 import {
   runDownViaDaemon,
   runStatusViaDaemon,
@@ -12,9 +10,11 @@ import { runWaitViaDaemon } from "./commands/wait";
 import { runWeb } from "./commands/web";
 import { runExec } from "./commands/exec";
 import { runInit } from "./commands/init";
-import { requiresConfig } from "./commands/init-logic";
 
 const USAGE = `wos [--cwd <path>] <command>
+
+Running 'wos' with no command starts the local daemon (same as 'wos start') and
+prints the web UI URL. First-run setup happens in the web UI.
 
 Global options:
   --cwd <path>      Use <path> as the directory for resolving the current
@@ -22,10 +22,10 @@ Global options:
                     to worktree-scoped commands.
 
 Commands:
-  init               Run the setup wizard (also launched by bare 'wos'): bind
-                     address, port, terminal backend, and agent-plugin setup.
-                     Use 'wos init --yes [--host <h>] [--port <p>] [--backend
-                     <default|tmux>] [--install-tmux]' for non-interactive setup.
+  init               Non-interactive setup for CI / automation: applies defaults
+                     and flags and writes the global config without prompting.
+                     'wos init [--host <h>] [--port <p>] [--backend
+                     <default|tmux>] [--install-tmux] [--install-plugins]'.
   up [services] [--target <name>] [--force]
                      Deploy the current worktree via Docker Compose.
                        Without -d: foreground text mode — the CLI streams
@@ -147,24 +147,23 @@ function isKnownCommand(token: string): boolean {
 }
 
 /**
- * Injectable seams for `main` so the config gate and wizard routing can be
- * tested without touching the filesystem or running the real wizard. Both
- * default to production behaviour.
+ * Injectable seams for `main` so command routing can be tested without running
+ * the real daemon start or non-interactive init. Both default to production
+ * behaviour.
  */
 export interface MainDeps {
-  /** Whether the global config file exists (gate input). */
-  hasGlobalConfig?: () => boolean;
-  /** Setup-wizard entrypoint invoked by bare `wos` and `wos init`. */
+  /** Non-interactive setup entrypoint invoked by `wos init`. */
   runInit?: (argv: string[]) => Promise<number>;
+  /** Daemon start entrypoint invoked by bare `wos` and `wos start`. */
+  runStart?: (argv: string[]) => Promise<number>;
 }
 
 export async function main(
   argv: string[],
   deps: MainDeps = {},
 ): Promise<number> {
-  const hasGlobalConfig =
-    deps.hasGlobalConfig ?? (() => existsSync(globalConfigPath()));
   const runInitFn = deps.runInit ?? runInit;
+  const runStartFn = deps.runStart ?? runStart;
 
   const parsed = parseGlobalArgs(argv);
   if ("error" in parsed) {
@@ -173,18 +172,11 @@ export async function main(
   }
   const { global, command, rest = [] } = parsed;
 
-  // Config gate: every command other than the wizard entrypoints (bare `wos`,
-  // `init`) and help requires the global config file to exist. Enforced here,
-  // before any worktree resolution, daemon contact, or auto-start.
-  if (requiresConfig(command) && !hasGlobalConfig()) {
-    process.stderr.write(
-      "wos: no configuration found. Run `wos init` to set up.\n",
-    );
-    return 1;
-  }
-
   switch (command) {
+    // Bare `wos` starts the local daemon (≡ `wos start`). The daemon runs on
+    // built-in defaults when no config file exists; there is no config gate.
     case undefined:
+      return runStartFn(rest);
     case "init":
       return runInitFn(rest);
     case "up":
@@ -202,7 +194,7 @@ export async function main(
     case "worktree":
       return runWorktreeCommand(rest, { cwd: global.cwd });
     case "start":
-      return runStart(rest);
+      return runStartFn(rest);
     case "stop":
       return runStop();
     case "restart":

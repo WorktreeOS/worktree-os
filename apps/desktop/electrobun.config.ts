@@ -6,8 +6,8 @@ import type { ElectrobunConfig } from "electrobun";
  * The app is a native window over the existing self-hosting daemon: the Bun
  * process (`src/main.ts`) adopts-or-hosts the daemon and the system webview
  * loads its loopback URL. Resources copied here land under the bundle's
- * `Resources/` folder (`PATHS.RESOURCES_FOLDER`) and are resolved at runtime in
- * `src/resources.ts`:
+ * `Resources/app/` folder (Electrobun's `appBundleAppCodePath`, one level below
+ * `PATHS.RESOURCES_FOLDER`) and are resolved at runtime in `src/resources.ts`:
  *   - `web`     — the built `apps/web` SPA, served by the hosted daemon via
  *                 `DaemonWebOptions.assetRoot`.
  *   - `bin/wos` — the compiled CLI (`bun run build:binary` → `dist/wos`),

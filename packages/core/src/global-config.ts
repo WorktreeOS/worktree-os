@@ -334,6 +334,14 @@ export interface GlobalConfig {
    * by default; an absent block yields built-in defaults.
    */
   notifications: NotificationsConfig;
+  /**
+   * First-run onboarding completion marker: the ISO-8601 timestamp at which the
+   * web onboarding checklist was finished (or a back-compat stamp for an
+   * upgraded install). Absent = onboarding not yet completed. Its presence — not
+   * `config.exists` — is the source of truth for whether the web UI shows the
+   * first-run flow. See `firstRunSetupRequired` for the full semantics.
+   */
+  firstRunCompleted?: string;
 }
 
 /** Default disabled-by-default daemon logging settings. */
@@ -692,7 +700,52 @@ export async function loadGlobalConfig(
   config.logging = parseLogging(parsed.logging, path, warn);
   config.notifications = parseNotifications(parsed.notifications, path, warn);
 
+  if (parsed.firstRunCompleted !== undefined && parsed.firstRunCompleted !== null) {
+    if (typeof parsed.firstRunCompleted === "string" && parsed.firstRunCompleted.length > 0) {
+      config.firstRunCompleted = parsed.firstRunCompleted;
+    } else {
+      warn(
+        `wos: ${path} firstRunCompleted must be a non-empty timestamp string, got ${JSON.stringify(parsed.firstRunCompleted)}; ignoring\n`,
+      );
+    }
+  }
+
   return config;
+}
+
+/**
+ * Decide whether first-run onboarding is still required, per the marker-based
+ * semantics: required only when the completion marker is absent AND no config
+ * file exists AND the project registry is empty. An existing `config.json` or
+ * any registered project counts as already onboarded (back-compat) so upgrades
+ * never see onboarding.
+ */
+export function firstRunSetupRequired(input: {
+  markerPresent: boolean;
+  configExists: boolean;
+  projectCount: number;
+}): boolean {
+  if (input.markerPresent) return false;
+  if (input.configExists) return false;
+  if (input.projectCount > 0) return false;
+  return true;
+}
+
+/**
+ * Stamp the first-run completion marker and persist it through the validating
+ * save path, merging onto the existing raw draft so no other setting is
+ * clobbered. `at` defaults to now; callers may pass an explicit timestamp.
+ */
+export async function markFirstRunCompleted(
+  opts: SaveGlobalConfigOptions = {},
+  at: string = new Date().toISOString(),
+): Promise<
+  | { ok: true; snapshot: GlobalConfigManagementSnapshot }
+  | { ok: false; errors: GlobalConfigValidationError[] }
+> {
+  const snapshot = await buildManagementSnapshot(opts);
+  const base: GlobalConfigDraft = snapshot.raw ?? {};
+  return saveGlobalConfig({ ...base, firstRunCompleted: at }, opts);
 }
 
 /**
@@ -1944,6 +1997,8 @@ export interface GlobalConfigDraft {
   aiProviders?: AiProviderDraft[];
   commitMessages?: CommitMessagesDraft;
   autoInjectAgentPlugins?: boolean;
+  /** First-run onboarding completion marker (ISO-8601 timestamp). */
+  firstRunCompleted?: string;
   logging?: LoggingConfigDraft;
   /**
    * Notification settings as surfaced in the management snapshot. The Telegram
@@ -2173,6 +2228,9 @@ function extractSupportedDraft(obj: Record<string, unknown>): GlobalConfigDraft 
   if (commitMessages) draft.commitMessages = commitMessages;
   if (typeof obj.autoInjectAgentPlugins === "boolean") {
     draft.autoInjectAgentPlugins = obj.autoInjectAgentPlugins;
+  }
+  if (typeof obj.firstRunCompleted === "string" && obj.firstRunCompleted.length > 0) {
+    draft.firstRunCompleted = obj.firstRunCompleted;
   }
   const logging = extractLoggingDraft(obj.logging);
   if (logging) draft.logging = logging;
@@ -2703,6 +2761,24 @@ export function validateGlobalConfigSave(
     }
   }
 
+  // ---- firstRunCompleted (onboarding marker) ----
+  let persistedFirstRunCompleted: string | undefined;
+  if (
+    "firstRunCompleted" in request &&
+    request.firstRunCompleted !== undefined &&
+    request.firstRunCompleted !== null
+  ) {
+    const raw = request.firstRunCompleted;
+    if (typeof raw !== "string" || raw.length === 0) {
+      errors.push({
+        field: "firstRunCompleted",
+        message: "firstRunCompleted must be a non-empty timestamp string",
+      });
+    } else {
+      persistedFirstRunCompleted = raw;
+    }
+  }
+
   // ---- logging (pass-through; no settings UI yet, so deep validation is
   // deferred — the supported raw fields are preserved verbatim). ----
   const persistedLogging =
@@ -2745,6 +2821,9 @@ export function validateGlobalConfigSave(
   }
   if (persistedAutoInject !== undefined) {
     persistable.autoInjectAgentPlugins = persistedAutoInject;
+  }
+  if (persistedFirstRunCompleted !== undefined) {
+    persistable.firstRunCompleted = persistedFirstRunCompleted;
   }
   if (persistedLogging !== undefined) {
     persistable.logging = persistedLogging;
@@ -3145,6 +3224,29 @@ async function readExistingCommitMessagesDraft(
 }
 
 /**
+ * Read the first-run completion marker from the on-disk config, or undefined
+ * when absent/unreadable. Used by the generic save flow to preserve the marker
+ * when a settings save omits it (the marker is written by onboarding, not the
+ * settings pages).
+ */
+async function readExistingFirstRunCompleted(
+  path: string,
+): Promise<string | undefined> {
+  const file = Bun.file(path);
+  if (!(await file.exists())) return undefined;
+  try {
+    const parsed = await file.json();
+    if (!isRecord(parsed)) return undefined;
+    return typeof parsed.firstRunCompleted === "string" &&
+      parsed.firstRunCompleted.length > 0
+      ? parsed.firstRunCompleted
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Read the full (non-redacted) `notifications` block from the on-disk config,
  * or undefined when absent/unreadable. Used by the generic save flow to
  * preserve the notification settings — including the real Telegram token and
@@ -3240,6 +3342,14 @@ export async function saveGlobalConfig(
   if (result.persistable.notifications === undefined) {
     const existing = await readExistingNotifications(path);
     if (existing) result.persistable.notifications = existing;
+  }
+  // Preserve the first-run completion marker on every generic save: it is set
+  // by onboarding completion (or back-compat stamping), not by the settings
+  // pages, so an ordinary settings save must never drop it and re-trigger
+  // onboarding.
+  if (result.persistable.firstRunCompleted === undefined) {
+    const existing = await readExistingFirstRunCompleted(path);
+    if (existing) result.persistable.firstRunCompleted = existing;
   }
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify(result.persistable, null, 2) + "\n", "utf8");

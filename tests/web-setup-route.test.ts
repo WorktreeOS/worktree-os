@@ -25,6 +25,43 @@ describe("setup route module surface", () => {
     expect(typeof mod.SetupRoute).toBe("function");
   });
 
+  test("setup route renders a readiness checklist and drops non-essential controls", async () => {
+    const text = await Bun.file(
+      new URL("../apps/web/src/routes/setup.tsx", import.meta.url).pathname,
+    ).text();
+    // Five checklist items: port, Docker, Compose v2, tmux/psmux, plugins.
+    for (const id of [
+      "setup-checklist",
+      "setup-item-port",
+      "setup-item-docker",
+      "setup-item-compose",
+      "setup-item-tmux",
+      "setup-item-plugins",
+    ]) {
+      expect(text).toContain(id);
+    }
+    // First-project registration was removed from onboarding; it happens from
+    // the sidebar after finishing.
+    expect(text).not.toContain("setup-item-project");
+    // Per-item actions: install (tmux + plugins), refresh, finish, port-changed.
+    expect(text).toContain("setup-item-tmux-install");
+    expect(text).toContain("setup-item-plugins-install");
+    expect(text).toContain("setup-refresh");
+    expect(text).toContain("setup-finish");
+    expect(text).toContain("setup-port-changed");
+    // Wires the new setup endpoints.
+    expect(text).toContain("getSetupEnvironment");
+    expect(text).toContain("installTmux");
+    expect(text).toContain("markSetupComplete");
+    // Onboarding is essentials-only: the old two-step form's bind-host, tunnel,
+    // public Web UI, and SSL controls are gone (they live only in Settings).
+    expect(text).not.toContain("setup-tunnel-enabled");
+    expect(text).not.toContain("setup-tunnel-domain");
+    expect(text).not.toContain("setup-tunnel-webui-enabled");
+    expect(text).not.toContain("setup-tunnel-webui-secret");
+    expect(text).not.toContain("setTunnelDomain");
+  });
+
   test("DeployConfigDocsRoute is exported", async () => {
     const mod = await import("../apps/web/src/routes/docs-deploy-config");
     expect(typeof mod.DeployConfigDocsRoute).toBe("function");

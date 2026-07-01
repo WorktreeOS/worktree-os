@@ -15,6 +15,12 @@ D1–D8), and spec.
 
 - **Adopt-or-host** (`src/daemon-host.ts`) — reuses `createDaemonBootstrap().discover()`;
   adopts a healthy daemon, hosts one in-process via `startDaemon()` when absent.
+  The hosted daemon starts on built-in defaults (no config file required) and, if
+  the default port is busy, binds the next free port.
+- **First-run onboarding** — the desktop app never ran the old CLI wizard; it now
+  shares the web UI's onboarding checklist (web port · Docker · Docker Compose v2 ·
+  tmux/psmux · agent plugins), gated by the `firstRunCompleted` marker just like
+  the headless daemon.
 - **Loopback window** (`src/main.ts`) — system webview at `127.0.0.1:<port>`.
 - **Tray-decoupled lifecycle** (`runtime.exitOnLastWindowClosed: false`) —
   closing the window keeps the daemon running; Quit stops it only when we host.

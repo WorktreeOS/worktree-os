@@ -81,7 +81,7 @@ export async function runWeb(
   return 0;
 }
 
-function defaultLauncher(platform: NodeJS.Platform): WebLauncher {
+export function defaultLauncher(platform: NodeJS.Platform): WebLauncher {
   return async (url: string) => {
     try {
       if (platform === "darwin") {
